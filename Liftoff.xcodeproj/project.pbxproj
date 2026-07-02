@@ -24,6 +24,8 @@
 		6DD085BD30C736B02C375D91 /* CompanionClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60589902845A2D9BE751CE7E /* CompanionClient.swift */; };
 		7805EC615A7CC5E47048B947 /* LiftoffAirApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DED82DBEF8CA582370AD8F9 /* LiftoffAirApp.swift */; };
 		823F7B3093B8262CBC0ECA52 /* SleepGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F3257FFB1E50A184957B64F /* SleepGuard.swift */; };
+		8642575A925F86E782209E03 /* WhatsNew.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C303AD35206058DCBE9AB57 /* WhatsNew.swift */; };
+		8B032F8B3080E4F3C0B931E2 /* CHANGELOG.md in Resources */ = {isa = PBXBuildFile; fileRef = 81E22E8877EA8F75745B4922 /* CHANGELOG.md */; };
 		96D7B948351B7CBE858E2270 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 01F8AD66ADDED893BFAAF557 /* SwiftTerm */; };
 		9D5E2ADAE24707D58BFD1451 /* WindowChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54FEEEA0946878E6AEB8EC3F /* WindowChrome.swift */; };
 		A1DA346962B578E097844D5D /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E70D14647BCDF1300E9A6D9 /* QRScannerView.swift */; };
@@ -67,6 +69,7 @@
 		2A353CBEB2EB8E39EAB64475 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		362FDA0CBC740FE65EAD9D6B /* TerminalScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalScreen.swift; sourceTree = "<group>"; };
 		3A5BE2FEA834646BF79EFCC4 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
+		3C303AD35206058DCBE9AB57 /* WhatsNew.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNew.swift; sourceTree = "<group>"; };
 		3E1722A26A1A852A2C63A6D6 /* Onboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Onboarding.swift; sourceTree = "<group>"; };
 		4566DE507A0AC3EED8F4ABE0 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		45E769AF3A9C3665ED2E2AB4 /* web */ = {isa = PBXFileReference; lastKnownFileType = folder; path = web; sourceTree = SOURCE_ROOT; };
@@ -77,6 +80,7 @@
 		60589902845A2D9BE751CE7E /* CompanionClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionClient.swift; sourceTree = "<group>"; };
 		6EFD82C999B1A2F78D63A924 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		7D9B7B1FB3E15D3CC6799507 /* WelcomeGuide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeGuide.swift; sourceTree = "<group>"; };
+		81E22E8877EA8F75745B4922 /* CHANGELOG.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CHANGELOG.md; sourceTree = "<group>"; };
 		858D0ED5B404813FBA55D41B /* SessionListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListView.swift; sourceTree = "<group>"; };
 		85B746224474E2E3ECD32301 /* icon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = icon.icon; sourceTree = "<group>"; };
 		881FD7201A16B83DA34EDC4B /* notification.caf */ = {isa = PBXFileReference; path = notification.caf; sourceTree = "<group>"; };
@@ -143,6 +147,7 @@
 				8B57CD3EE9E91F07F3DEE927 /* Updater.swift */,
 				01A34951B8A62CB83A7D030E /* WebServer.swift */,
 				7D9B7B1FB3E15D3CC6799507 /* WelcomeGuide.swift */,
+				3C303AD35206058DCBE9AB57 /* WhatsNew.swift */,
 				54FEEEA0946878E6AEB8EC3F /* WindowChrome.swift */,
 			);
 			path = Liftoff;
@@ -181,6 +186,7 @@
 		848B3526876E67C431AB7EDC = {
 			isa = PBXGroup;
 			children = (
+				81E22E8877EA8F75745B4922 /* CHANGELOG.md */,
 				85B746224474E2E3ECD32301 /* icon.icon */,
 				1307C7DE438CB002F94D2141 /* icon.png */,
 				881FD7201A16B83DA34EDC4B /* notification.caf */,
@@ -302,6 +308,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8B032F8B3080E4F3C0B931E2 /* CHANGELOG.md in Resources */,
 				3231DCB8BBCE15D23237EB4F /* icon.icon in Resources */,
 				CBFA4C3CC281E93C0EB601DC /* icon.png in Resources */,
 				C1749F05222D15A530FEEFE6 /* notification.caf in Resources */,
@@ -355,6 +362,7 @@
 				E7CE69AA7D73B4DDA69BFF53 /* Updater.swift in Sources */,
 				ADA445E9A17B46C507F95734 /* WebServer.swift in Sources */,
 				DFF8B09E3C3648EDD3CEFBB6 /* WelcomeGuide.swift in Sources */,
+				8642575A925F86E782209E03 /* WhatsNew.swift in Sources */,
 				9D5E2ADAE24707D58BFD1451 /* WindowChrome.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

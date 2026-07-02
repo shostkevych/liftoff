@@ -131,6 +131,15 @@ struct ContentView: View {
             }
         }
         .overlay {
+            if store.whatsNewVisible {
+                ZStack {
+                    PopupBackdrop { store.whatsNewVisible = false }
+                    WhatsNewPopup(notes: store.whatsNewNotes) { store.whatsNewVisible = false }
+                        .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                }
+            }
+        }
+        .overlay {
             if store.projectSwitcherVisible {
                 ProjectSwitcherOverlay()
                     .transition(.opacity.combined(with: .scale(scale: 0.96)))

@@ -93,8 +93,42 @@ echo "› Zipping (post-staple)…"
 rm -f "$ZIP"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
 
+# Release notes: pull this version's section out of CHANGELOG.md and drop a
+# matching Liftoff-<version>.html next to the zip. generate_appcast embeds it
+# as the item's <description>, so Sparkle's update prompt shows the same notes
+# the app's post-update "What's New" popup does.
+echo "› Extracting release notes for $SHORT_VERSION from CHANGELOG.md…"
+/usr/bin/python3 - "$ROOT/CHANGELOG.md" "$SHORT_VERSION" "$RELEASES/Liftoff-${SHORT_VERSION}.html" <<'PYEOF'
+import html, re, sys
+src, version, dest = sys.argv[1:4]
+lines, section, found = open(src).read().split("\n"), [], False
+for line in lines:
+    if line.startswith("## "):
+        if found: break
+        found = line[3:].strip() == version
+        continue
+    if found: section.append(line)
+if not found or not any(s.strip() for s in section):
+    sys.exit(f"CHANGELOG.md has no '## {version}' section — add one before releasing.")
+out, in_list = [f"<h2>Version {html.escape(version)}</h2>"], False
+def inline(s):
+    s = html.escape(s)
+    s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
+    return re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", s)
+for line in section:
+    stripped = line.strip()
+    if stripped.startswith("- "):
+        if not in_list: out.append("<ul>"); in_list = True
+        out.append(f"<li>{inline(stripped[2:])}</li>")
+    elif stripped:
+        if in_list: out.append("</ul>"); in_list = False
+        out.append(f"<p>{inline(stripped)}</p>")
+if in_list: out.append("</ul>")
+open(dest, "w").write("\n".join(out) + "\n")
+PYEOF
+
 echo "› Generating appcast (signs with your Keychain EdDSA key)…"
-"$TOOLS/bin/generate_appcast" --download-url-prefix "$DOWNLOAD_PREFIX" "$RELEASES"
+"$TOOLS/bin/generate_appcast" --embed-release-notes --download-url-prefix "$DOWNLOAD_PREFIX" "$RELEASES"
 
 # generate_appcast writes releases/appcast.xml; the feed lives at site root.
 cp "$RELEASES/appcast.xml" "$ROOT/site/public/appcast.xml"

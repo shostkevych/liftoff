@@ -22,6 +22,8 @@ targets:
         buildPhase: resources
       - path: icon.png
         buildPhase: resources
+      - path: CHANGELOG.md
+        buildPhase: resources
       - path: web
         type: folder
         buildPhase: resources

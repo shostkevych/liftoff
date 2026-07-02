@@ -88,6 +88,7 @@ private struct RootView: View {
             SleepGuard.shared.apply(store.keepAwake)
             store.restorePinnedProjects()
             store.showWelcomeIfNeeded()
+            store.showWhatsNewIfNeeded()
         }
     }
 }

@@ -504,6 +504,20 @@ final class AppStore {
         persist()
     }
 
+    /// After an update, show the new version's changelog once. Fresh installs
+    /// (welcome guide showing, or no recorded version yet) just record the
+    /// current version silently.
+    func showWhatsNewIfNeeded() {
+        let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let defaults = UserDefaults.standard
+        let last = defaults.string(forKey: "lastRunVersion")
+        defaults.set(current, forKey: "lastRunVersion")
+        guard let last, last != current, !welcomeVisible,
+              let notes = Changelog.notes(for: current) else { return }
+        whatsNewNotes = notes
+        whatsNewVisible = true
+    }
+
     /// Air → Set Web Password. Empty string blocks the browser client entirely.
     func setWebPassword(_ password: String) {
         webPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -628,6 +642,10 @@ final class AppStore {
     var cerebrasKeyVisible = false
     /// First-launch onboarding guide overlay.
     var welcomeVisible = false
+    /// Post-update "What's New" overlay with the new version's changelog.
+    var whatsNewVisible = false
+    /// Markdown body shown in the What's New overlay (set on version bump).
+    var whatsNewNotes = ""
     /// About Liftoff overlay (version + check for updates).
     var aboutVisible = false
     /// Cmd+O / sidebar +: open-project picker shown as a modal (only once a
