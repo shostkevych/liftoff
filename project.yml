@@ -1,0 +1,97 @@
+name: Liftoff
+options:
+  bundleIdPrefix: com.shostkevych
+  deploymentTarget:
+    macOS: "26.0"
+    iOS: "17.0"
+packages:
+  SwiftTerm:
+    path: SwiftTerm
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.6.0
+targets:
+  Liftoff:
+    type: application
+    platform: macOS
+    sources:
+      - Liftoff
+      - path: icon.icon
+        buildPhase: resources
+      - path: notification.caf
+        buildPhase: resources
+      - path: icon.png
+        buildPhase: resources
+      - path: web
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: SwiftTerm
+      - package: Sparkle
+    info:
+      path: Liftoff/Info.plist
+      properties:
+        NSPrincipalClass: NSApplication
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        CFBundleIconName: icon
+        CFBundleIconFile: icon
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LSApplicationCategoryType: public.app-category.developer-tools
+        SUFeedURL: https://liftoff.shostkevych.com/appcast.xml
+        SUPublicEDKey: vtFMKG1HkV9612QiZ17gg1xYhPdEGU+15Yje7ueiS8Q=
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 3600
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.shostkevych.liftoff
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.10"
+        ASSETCATALOG_COMPILER_APPICON_NAME: icon
+        ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Developer ID Application"
+        DEVELOPMENT_TEAM: 696F3B97CX
+  LiftoffAir:
+    type: application
+    platform: iOS
+    sources:
+      - LiftoffAir
+      - path: icon.icon
+        buildPhase: resources
+      - path: icon.png
+        buildPhase: resources
+    dependencies:
+      - package: SwiftTerm
+    info:
+      path: LiftoffAir/Info.plist
+      properties:
+        UILaunchScreen: {}
+        CFBundleDisplayName: "Liftoff Air"
+        CFBundleIcons:
+          CFBundlePrimaryIcon:
+            CFBundleIconName: icon
+        NSLocalNetworkUsageDescription: "Connect to your Mac running Liftoff over the local network."
+        NSCameraUsageDescription: "Liftoff Air uses the camera to scan the pairing QR code shown by Liftoff on your Mac, so it can connect to your terminals."
+        NSFaceIDUsageDescription: "Unlock Liftoff with Face ID."
+        ITSAppUsesNonExemptEncryption: false
+        LSApplicationCategoryType: public.app-category.developer-tools
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+          NSAllowsLocalNetworking: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.shostkevych.liftoff.air
+        SWIFT_VERSION: "5.10"
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: icon
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 696F3B97CX
