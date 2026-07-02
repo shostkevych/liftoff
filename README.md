@@ -8,7 +8,7 @@
 A native macOS terminal for engineers who run coding agents across many projects at once.<br>
 Watch and steer Claude Code, Codex, Gemini and more — from your Mac, your phone, or any browser.</p>
 
-<p align="center"><a href="https://liftoff.shostkevych.com">liftoff.shostkevych.com</a> · <a href="https://liftoff.shostkevych.com/download">Download for macOS</a></p>
+<p align="center"><a href="https://liftoff.shostkevych.com">liftoff.shostkevych.com</a> · <a href="https://liftoff.shostkevych.com/download">Download for macOS</a> · <a href="https://apps.apple.com/us/app/liftoff-air/id6780915535">Liftoff Air on the App Store</a></p>
 
 ---
 
@@ -16,7 +16,7 @@ Watch and steer Claude Code, Codex, Gemini and more — from your Mac, your phon
 
 - **Projects × terminals** — top-level tabs per project folder, nested terminal tabs and split panes per project, each running its own agent session.
 - **Agent-aware** — detects when Claude Code (or opencode) is working, waiting for input, or done; shows per-session status at a glance and native macOS notifications with project-aware titles.
-- **Liftoff Air (iOS companion)** — pair your iPhone by scanning a QR code and monitor or drive every session from your phone over the local network, with end-to-end encrypted traffic.
+- **Liftoff Air (iOS companion)** — pair your iPhone by scanning a QR code and monitor or drive every session from your phone over the local network, with end-to-end encrypted traffic. [Get it on the App Store](https://apps.apple.com/us/app/liftoff-air/id6780915535).
 - **Web access** — a bundled browser client lets you check on sessions from any device.
 - **Native & fast** — SwiftUI + [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) with a Metal-accelerated renderer. No Electron, no telemetry, no account.
 - **Auto-updates** — signed and notarized releases delivered via [Sparkle](https://sparkle-project.org).

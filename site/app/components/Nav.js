@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const GITHUB = "https://github.com/yourname/liftoff";
+const GITHUB = "https://github.com/shostkevych/liftoff";
 
 export default function Nav() {
   const [scrolled, setScrolled] = useState(false);

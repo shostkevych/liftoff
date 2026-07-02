@@ -438,6 +438,7 @@ section { padding: 96px 0; }
 
 /* ---------- air steps ---------- */
 .air-steps { margin-top: 28px; display: flex; flex-direction: column; gap: 14px; }
+.air-cta { margin-top: 26px; }
 .air-step { display: flex; align-items: center; gap: 13px; color: var(--ink-soft); font-size: 1.02rem; }
 .air-step .n {
   flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
