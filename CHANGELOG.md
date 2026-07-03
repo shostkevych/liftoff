@@ -4,6 +4,11 @@ Newest release on top. Each `## <version>` section is shown in-app: in the
 "What's New" popup after an update, and (via release.sh) in Sparkle's update
 prompt.
 
+## 1.6
+
+- New: a "What's New" popup shows the changelog right after each update
+- Sparkle update prompts now include the release notes before you install
+
 ## 1.5
 
 - opencode notifications now match Claude Code: native banners on stop and permission prompts
