@@ -42,13 +42,10 @@ final class CompanionServer {
         var attached: UUID?
         var inbox = Data()
         var authed: Bool
-        /// Remote endpoint string for rate limiting.
-        let endpoint: String
         init(_ c: NWConnection, isWS: Bool) {
             connection = c
             self.isWS = isWS
             authed = false // both TCP (companion) and WS clients must auth
-            endpoint = c.endpoint.debugDescription
         }
     }
 
@@ -157,30 +154,6 @@ final class CompanionServer {
         }
     }
 
-    // MARK: Rate limiting (web auth)
-
-    private var authFailures: [String: (count: Int, until: Date)] = [:]
-
-    private func checkRateLimit(for client: Client) -> Bool {
-        let now = Date()
-        if let record = authFailures[client.endpoint], record.until > now {
-            return false
-        }
-        return true
-    }
-
-    private func recordAuthFailure(for client: Client) {
-        let now = Date()
-        let record = authFailures[client.endpoint] ?? (0, now)
-        let count = record.count + 1
-        let delay = min(pow(2.0, Double(count)), 120.0)
-        authFailures[client.endpoint] = (count, now + delay)
-    }
-
-    private func clearRateLimit(for client: Client) {
-        authFailures[client.endpoint] = nil
-    }
-
     // MARK: Message handling
 
     private func handle(line: Data, from client: Client) {
@@ -191,10 +164,6 @@ final class CompanionServer {
         // Raw TCP clients must present the pairing token before any command.
         // The token is embedded in the QR code and unique per Mac.
         if !client.isWS && !client.authed {
-            guard checkRateLimit(for: client) else {
-                send(["t": "authfail"], to: client)
-                return
-            }
             if t == "auth" {
                 let expected = token
                 guard !expected.isEmpty else {
@@ -203,10 +172,8 @@ final class CompanionServer {
                 }
                 if (msg["token"] as? String) == expected {
                     client.authed = true
-                    clearRateLimit(for: client)
                     send(["t": "authok"], to: client)
                 } else {
-                    recordAuthFailure(for: client)
                     send(["t": "authfail"], to: client)
                 }
             } else {
@@ -217,10 +184,6 @@ final class CompanionServer {
 
         // --- Auth for WebSocket (browser) clients ---
         if client.isWS && !client.authed {
-            guard checkRateLimit(for: client) else {
-                send(["t": "authfail"], to: client)
-                return
-            }
             let password = SettingsStore.webPassword
             guard !password.isEmpty else {
                 send(["t": "blocked"], to: client)
@@ -229,10 +192,8 @@ final class CompanionServer {
             if t == "auth" {
                 if (msg["pass"] as? String) == password {
                     client.authed = true
-                    clearRateLimit(for: client)
                     send(["t": "authok"], to: client)
                 } else {
-                    recordAuthFailure(for: client)
                     send(["t": "authfail"], to: client)
                 }
             } else {
@@ -429,7 +390,7 @@ final class CompanionServer {
     }
 
     private func broadcastSessions() {
-        for client in clients.values { sendSessions(to: client) }
+        for client in clients.values where client.authed { sendSessions(to: client) }
     }
 
     private var activityBroadcastScheduled = false
@@ -460,7 +421,7 @@ final class CompanionServer {
                 let text = await AppStore.cerebrasChat(system: Self.greetingSystem, user: "Generate the greeting.", temperature: 1.2)
                 if let text, text.count < 220 {
                     self.greeting = text
-                    for c in self.clients.values { self.send(["t": "greeting", "text": text], to: c) }
+                    for c in self.clients.values where c.authed { self.send(["t": "greeting", "text": text], to: c) }
                     return
                 }
                 if attempt < 2 { try? await Task.sleep(nanoseconds: 1_500_000_000) }
@@ -489,22 +450,26 @@ final class CompanionServer {
     }
 
     /// Send a snapshot payload, encrypted for companion clients.
+    /// Fail closed: never fall back to plaintext for a TCP client — the phone
+    /// drops undecryptable frames anyway, so the fallback only leaked data.
     private func sendSnapshot(_ data: Data, to client: Client) {
         let payload: String
         if client.isWS {
             payload = data.base64EncodedString()
         } else {
-            payload = (try? LiftoffCrypto.encrypt(data, using: cryptoKey).base64EncodedString()) ?? data.base64EncodedString()
+            guard let enc = try? LiftoffCrypto.encrypt(data, using: cryptoKey) else { return }
+            payload = enc.base64EncodedString()
         }
         send(["t": "snapshot", "d": payload], to: client)
     }
 
     func disconnectTerminal(_ id: UUID) {
+        // Detach subscribers but keep their connections alive — killing the whole
+        // socket just because one terminal closed forced the phone into a full
+        // reconnect. The debounced broadcast below refreshes their session lists.
         let oids = subscribers[id] ?? []
         for oid in oids {
             clients[oid]?.attached = nil
-            clients[oid]?.connection.cancel()
-            clients[oid] = nil
         }
         subscribers[id] = nil
         if let view = TerminalHostView.cache[id] {
@@ -512,6 +477,7 @@ final class CompanionServer {
             view.clearRemoteSize()
         }
         updateControlled()
+        terminalActivityChanged()
     }
 
     private func updateControlled() {
@@ -556,7 +522,9 @@ final class CompanionServer {
             if client.isWS {
                 payload = bytes.base64EncodedString()
             } else {
-                payload = (try? LiftoffCrypto.encrypt(bytes, using: cryptoKey).base64EncodedString()) ?? bytes.base64EncodedString()
+                // Fail closed — no plaintext fallback (see sendSnapshot).
+                guard let enc = try? LiftoffCrypto.encrypt(bytes, using: cryptoKey) else { continue }
+                payload = enc.base64EncodedString()
             }
             send(["t": "output", "d": payload], to: client)
         }

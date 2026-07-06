@@ -173,7 +173,16 @@ struct SessionListView: View {
             if newPath.isEmpty && client.attachedID != nil { client.detach() }
         }
         .onChange(of: client.openedTid) { _, _ in navigateToOpened() }
-        .onChange(of: client.sessions) { _, _ in navigateToOpened() }
+        .onChange(of: client.sessions) { _, sessions in
+            // The terminal we're viewing was closed on the Mac — leave its screen.
+            // (The server keeps the connection alive on close, so no state change
+            // pops us out anymore.)
+            if let att = client.attachedID, !path.isEmpty,
+               client.hasLoaded, !sessions.contains(where: { $0.tid == att }) {
+                path.removeAll()
+            }
+            navigateToOpened()
+        }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .background:

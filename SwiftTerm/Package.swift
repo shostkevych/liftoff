@@ -9,10 +9,12 @@ let platformExcludes = ["Apple", "Mac", "iOS"]
 let platformExcludes: [String] = []
 #endif
 
-let isGitHubActions = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == "true"
-let benchmarkDependencies: [Package.Dependency] = isGitHubActions ? [] : [
+// Benchmarks pull in package-benchmark → jemalloc (a system library), which breaks
+// Xcode package graph resolution when jemalloc isn't installed. Opt in explicitly.
+let enableBenchmarks = ProcessInfo.processInfo.environment["SWIFTTERM_BENCHMARKS"] == "1"
+let benchmarkDependencies: [Package.Dependency] = enableBenchmarks ? [
     .package(url: "https://github.com/ordo-one/package-benchmark", .upToNextMajor(from: "1.29.11"))
-]
+] : []
 
 #if os(Windows)
 let products: [Product] = [
@@ -54,7 +56,7 @@ let products: [Product] = [
     ),
 ]
 
-let benchmarkTargets: [Target] = isGitHubActions ? [] : [
+let benchmarkTargets: [Target] = !enableBenchmarks ? [] : [
     .executableTarget(
         name: "SwiftTermBenchmarks",
         dependencies: [

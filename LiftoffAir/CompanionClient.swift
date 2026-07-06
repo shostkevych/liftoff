@@ -2,6 +2,9 @@ import Foundation
 import Network
 import Observation
 import CryptoKit
+import os
+
+let companionLog = Logger(subsystem: "com.shostkevych.liftoffair", category: "companion")
 
 /// TCP client for the Liftoff Mac companion server.
 /// Protocol: newline-delimited JSON; binary payloads are base64-encoded.
@@ -88,24 +91,37 @@ final class CompanionClient {
 
     func connect() {
         if demo { startDemo(); return }
+        // Tear down any previous socket first. Stale connections must not keep
+        // reporting state changes — their handlers stomping `state` is what made
+        // the UI flap between connected/failed and kick the user out of terminals.
+        connection?.cancel()
+        authed = false
+        inbox.removeAll()
+        companionLog.info("connect() → \(self.host, privacy: .public):48624")
         let conn = NWConnection(
             host: NWEndpoint.Host(host),
             port: NWEndpoint.Port(rawValue: 48624)!,
             using: .tcp
         )
-        conn.stateUpdateHandler = { [weak self] st in
+        conn.stateUpdateHandler = { [weak self, weak conn] st in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, let conn, self.connection === conn else { return }
                 switch st {
                 case .ready:
+                    companionLog.info("socket ready — sending auth")
                     self.state = "connected"
                     self.authenticate()
                 case .failed(let e):
+                    companionLog.error("socket failed: \(String(describing: e), privacy: .public)")
                     self.state = "failed: \(e.localizedDescription)"
                 case .cancelled:
+                    companionLog.info("socket cancelled")
                     self.state = "disconnected"
                 case .waiting(let e):
+                    companionLog.warning("socket waiting: \(String(describing: e), privacy: .public)")
                     self.state = "waiting: \(e.localizedDescription)"
+                case .preparing:
+                    companionLog.info("socket preparing…")
                 default:
                     break
                 }
@@ -113,11 +129,12 @@ final class CompanionClient {
         }
         connection = conn
         conn.start(queue: .main)
-        receive()
+        receive(on: conn)
     }
 
     /// Send the pairing token to the Mac. Once authok arrives we proceed to list.
     private func authenticate() {
+        companionLog.info("authenticating — token len=\(self.token.count) suffix=…\(String(self.token.suffix(4)), privacy: .public)")
         send(["t": "auth", "token": token])
     }
 
@@ -164,9 +181,11 @@ final class CompanionClient {
     }
 
     /// Forward keystrokes from the terminal view to the Mac, encrypted.
+    /// Fail closed: never send plaintext keystrokes — the server drops
+    /// undecryptable input anyway.
     func sendInput(_ bytes: Data) {
         if demo { demoEcho(bytes); return }
-        let enc = (try? LiftoffCrypto.encrypt(bytes, using: cryptoKey)) ?? bytes
+        guard let enc = try? LiftoffCrypto.encrypt(bytes, using: cryptoKey) else { return }
         send(["t": "input", "d": enc.base64EncodedString()])
     }
 
@@ -179,22 +198,34 @@ final class CompanionClient {
 
     private func send(_ dict: [String: Any]) {
         guard var data = try? JSONSerialization.data(withJSONObject: dict) else { return }
+        let t = dict["t"] as? String ?? "?"
         data.append(0x0A)
-        connection?.send(content: data, completion: .contentProcessed { _ in })
+        guard let connection else {
+            companionLog.warning("send(\(t, privacy: .public)) dropped — no connection")
+            return
+        }
+        companionLog.debug("send → \(t, privacy: .public) (\(data.count) bytes)")
+        connection.send(content: data, completion: .contentProcessed { error in
+            if let error {
+                companionLog.error("send(\(t, privacy: .public)) failed: \(String(describing: error), privacy: .public)")
+            }
+        })
     }
 
-    private func receive() {
-        connection?.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
+    private func receive(on conn: NWConnection) {
+        conn.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self, weak conn] data, _, isComplete, error in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, let conn, self.connection === conn else { return }
                 if let data, !data.isEmpty {
                     self.inbox.append(data)
                     self.drain()
                 }
                 if isComplete || error != nil {
+                    companionLog.warning("receive ended — isComplete=\(isComplete) error=\(error.map { String(describing: $0) } ?? "nil", privacy: .public)")
+                    self.authed = false
                     self.state = "disconnected"
                 } else {
-                    self.receive()
+                    self.receive(on: conn)
                 }
             }
         }
@@ -211,12 +242,18 @@ final class CompanionClient {
 
     private func handle(_ line: Data) {
         guard let msg = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
-              let t = msg["t"] as? String else { return }
+              let t = msg["t"] as? String else {
+            companionLog.error("unparseable line (\(line.count) bytes): \(String(data: line.prefix(120), encoding: .utf8) ?? "<binary>", privacy: .public)")
+            return
+        }
+        companionLog.debug("recv ← \(t, privacy: .public)")
         switch t {
         case "authok":
+            companionLog.info("auth OK")
             authed = true
             list()
         case "needauth", "authfail":
+            companionLog.error("auth rejected (\(t, privacy: .public))")
             authed = false
             state = "auth failed"
         case "sessions":
@@ -254,9 +291,12 @@ final class CompanionClient {
             // Fail closed: only render successfully decrypted bytes. Never feed
             // raw ciphertext to the terminal — that's what showed up as garbled,
             // "encrypted-looking" symbols when a frame failed to decrypt.
-            if let b64 = msg["d"] as? String, let enc = Data(base64Encoded: b64),
-               let raw = try? LiftoffCrypto.decrypt(enc, using: cryptoKey) {
-                onBytes?(raw)
+            if let b64 = msg["d"] as? String, let enc = Data(base64Encoded: b64) {
+                if let raw = try? LiftoffCrypto.decrypt(enc, using: cryptoKey) {
+                    onBytes?(raw)
+                } else {
+                    companionLog.error("\(t, privacy: .public) frame failed to decrypt (\(enc.count) bytes)")
+                }
             }
         default:
             break

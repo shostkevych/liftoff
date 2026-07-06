@@ -122,6 +122,15 @@ enum SettingsStore {
     }
 
     static func save(_ settings: Settings) {
+        var settings = settings
+        // The pairing token is never legitimately cleared — if a caller's
+        // snapshot is missing it, keep the one already on disk.
+        if settings.companionToken.isEmpty,
+           let data = try? Data(contentsOf: file),
+           let existing = try? JSONDecoder().decode(Settings.self, from: data),
+           !existing.companionToken.isEmpty {
+            settings.companionToken = existing.companionToken
+        }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         guard let data = try? encoder.encode(settings) else { return }

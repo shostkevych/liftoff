@@ -425,7 +425,10 @@ final class AppStore {
             declinedHookDirs: Array(declinedHookDirs),
             keepAwake: keepAwake,
             pinnedProjectPaths: Array(pinnedPaths),
-            sidebarWidth: paneLayout.sidebarWidth
+            sidebarWidth: paneLayout.sidebarWidth,
+            // Carry the pairing token through — omitting it wiped it on every
+            // save, silently rotating the token and breaking phone pairing.
+            companionToken: SettingsStore.load().companionToken
         )
         // Save secrets to Keychain separately
         SettingsStore.webPassword = webPassword
@@ -574,6 +577,12 @@ final class AppStore {
     }
 
     func addProject(folder: URL, promptTag: Bool = true) {
+        if let existing = projects.first(where: { $0.folder.standardizedFileURL.path == folder.standardizedFileURL.path }) {
+            selectedProjectIDs = [existing.id]
+            activeProjectID = existing.id
+            bumpStructure()
+            return
+        }
         let project = Project(folder: folder)
         project.onTerminalsChanged = { [weak self] in self?.bumpStructure() }
         projects.append(project)
