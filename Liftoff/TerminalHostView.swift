@@ -451,6 +451,8 @@ final class FocusTrackingTerminalView: LocalProcessTerminalView {
                 store.toggleSidebar(); return true
             case 13: // W -> close terminal
                 store.closeActiveTerminal(); return true
+            case 15: // R -> rename tab (custom name pins the title)
+                store.renameActiveTerminal(); return true
             case 18, 19, 20, 21, 23: // 1 2 3 4 5 -> terminal split width n/(n+1)
                 let map: [UInt16: Int] = [18: 1, 19: 2, 20: 3, 21: 4, 23: 5]
                 if let n = map[event.keyCode] { store.setActiveTerminalFraction(numerator: n) }

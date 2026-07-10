@@ -173,11 +173,17 @@ enum Agent {
 final class TerminalSession: Identifiable {
     let id = UUID()
     var title: String
+    /// User-set tab name (Cmd+R / right-click). While set, it wins over any
+    /// automatic title — OSC escapes and hooks keep writing `title` underneath,
+    /// so clearing this falls back to the live automatic one.
+    var customTitle: String?
     let workingDirectory: URL
     /// Agentic CLI currently running in the foreground, if any.
     var runningAgent: Agent?
     /// True while the PTY is actively producing output (recent activity).
     var isBusy: Bool = false
+
+    var displayTitle: String { customTitle ?? title }
 
     init(title: String, workingDirectory: URL) {
         self.title = title
@@ -1011,6 +1017,14 @@ final class AppStore {
 
     func newTerminalInActiveProject() {
         activeProject?.addTerminal()
+    }
+
+    /// Terminal whose tab is being renamed via the popup (Cmd+R / right-click).
+    var renamingTerminal: TerminalSession?
+
+    /// Cmd+R: prompt to rename the focused terminal's tab.
+    func renameActiveTerminal() {
+        renamingTerminal = activeProject?.activeTerminal
     }
 
     /// Cmd+D: split the focused terminal side by side.

@@ -374,6 +374,67 @@ struct CerebrasKeyPopup: View {
 
 /// Shown when an untagged project is opened (and from the header context menu):
 /// pick a label + palette color, reuse an existing tag, or skip.
+/// Cmd+R / tab right-click: set a custom tab name that nested processes
+/// (via OSC titles or agent hooks) can't overwrite.
+struct RenameTerminalPopup: View {
+    let terminal: TerminalSession
+    let dismiss: () -> Void
+
+    @State private var name: String = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            PopupHeader(title: "Rename Tab", icon: "pencil", dismiss: dismiss)
+
+            Text("A custom name sticks — programs running in this terminal can't change it. Leave it empty to go back to automatic titles.")
+                .font(.system(size: 12.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            TextField("Tab name", text: $name)
+                .textFieldStyle(.roundedBorder)
+                .controlSize(.large)
+                .focused($focused)
+                .onSubmit(save)
+
+            HStack(spacing: 12) {
+                if terminal.customTitle != nil {
+                    Button("Use Automatic Title") {
+                        terminal.customTitle = nil
+                        dismiss()
+                    }
+                    .buttonStyle(.glass)
+                    .controlSize(.large)
+                }
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.escape, modifiers: [])
+                    .buttonStyle(.glass)
+                    .controlSize(.large)
+                Button("Save") { save() }
+                    .keyboardShortcut(.return, modifiers: [])
+                    .buttonStyle(.glass)
+                    .controlSize(.large)
+                    .tint(.brand)
+            }
+            .padding(.top, 4)
+        }
+        .padding(26)
+        .modifier(PopupCard(width: 420))
+        .onAppear {
+            name = terminal.customTitle ?? terminal.title
+            focused = true
+        }
+    }
+
+    private func save() {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        terminal.customTitle = trimmed.isEmpty ? nil : trimmed
+        dismiss()
+    }
+}
+
 struct ProjectTagPopup: View {
     @Environment(AppStore.self) private var store
     let folder: URL

@@ -283,7 +283,7 @@ final class CompanionServer {
                 for term in project.terminals {
                     var item: [String: Any] = [
                         "tid": term.id.uuidString,
-                        "title": term.title,
+                        "title": term.displayTitle,
                         "pid": project.id.uuidString,
                         "pname": project.name,
                     ]

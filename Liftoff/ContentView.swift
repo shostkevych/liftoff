@@ -31,6 +31,16 @@ struct ContentView: View {
             }
         }
         .overlay {
+            if let terminal = store.renamingTerminal {
+                ZStack {
+                    PopupBackdrop { store.renamingTerminal = nil }
+                    RenameTerminalPopup(terminal: terminal) { store.renamingTerminal = nil }
+                        .id(terminal.id)
+                        .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                }
+            }
+        }
+        .overlay {
             if store.helpVisible {
                 ZStack {
                     PopupBackdrop { store.helpVisible = false }
@@ -516,7 +526,7 @@ struct ProjectPane: View {
         HStack(spacing: 1) {
             ForEach(project.terminals) { terminal in
                 NativeTab(
-                    title: terminal.title,
+                    title: terminal.displayTitle,
                     agent: terminal.runningAgent,
                     isBusy: terminal.isBusy,
                     isActive: terminal.id == project.activeTerminalID,
@@ -533,6 +543,24 @@ struct ProjectPane: View {
                     }
                 )
                 .frame(maxWidth: .infinity)
+                .contextMenu {
+                    Button("Rename Tab…") {
+                        focusTerminal(terminal)
+                        store.renamingTerminal = terminal
+                    }
+                    .keyboardShortcut("r", modifiers: .command)
+                    if terminal.customTitle != nil {
+                        Button("Use Automatic Title") { terminal.customTitle = nil }
+                    }
+                    Divider()
+                    Button("Close Terminal") {
+                        TerminalHostView.dispose(terminal)
+                        project.closeTerminal(terminal)
+                        if project.terminals.isEmpty {
+                            store.closeProject(project)
+                        }
+                    }
+                }
             }
             Button {
                 project.addTerminal()
@@ -647,6 +675,12 @@ struct ProjectPane: View {
             focusTerminal(terminal)
             store.splitActiveTerminal()
         }
+
+        Button("Rename Tab…") {
+            focusTerminal(terminal)
+            store.renamingTerminal = terminal
+        }
+        .keyboardShortcut("r", modifiers: .command)
 
         Button("Expand Terminal") {
             focusTerminal(terminal)
