@@ -133,6 +133,10 @@ echo "› Generating appcast (signs with your Keychain EdDSA key)…"
 # generate_appcast writes releases/appcast.xml; the feed lives at site root.
 cp "$RELEASES/appcast.xml" "$ROOT/site/public/appcast.xml"
 
+# Keep the site's /changelog page in sync (site/changelog.md is baked into
+# the page at Docker build time).
+cp "$ROOT/CHANGELOG.md" "$ROOT/site/changelog.md"
+
 echo "✓ Done. Review and deploy:"
 echo "    site/public/appcast.xml"
 echo "    $ZIP"

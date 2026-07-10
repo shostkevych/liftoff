@@ -465,6 +465,7 @@ export default function Home() {
             <a href="#summarize">Summaries</a>
             <a href="#keyboard">Shortcuts</a>
             <a href="#air">Air</a>
+            <a href="/changelog">Changelog</a>
             <a href="/privacy">Privacy</a>
             <a href="/terms">Terms</a>
             <a href={GITHUB} target="_blank" rel="noreferrer">GitHub</a>

@@ -13,7 +13,7 @@ export default function LegalShell({ tag, title, updated, intro, children }) {
           <a href="/" className="back">← Back to Liftoff</a>
           <div className="sec-tag">{tag}</div>
           <h1 className="display">{title}</h1>
-          <p className="updated">Last updated {updated}</p>
+          {updated ? <p className="updated">Last updated {updated}</p> : null}
           {intro ? <p className="intro">{intro}</p> : null}
           {children}
         </div>
@@ -28,6 +28,7 @@ export default function LegalShell({ tag, title, updated, intro, children }) {
             Liftoff
           </a>
           <div className="foot-links">
+            <a href="/changelog">Changelog</a>
             <a href="/privacy">Privacy</a>
             <a href="/terms">Terms</a>
             <a href={GITHUB} target="_blank" rel="noreferrer">GitHub</a>
