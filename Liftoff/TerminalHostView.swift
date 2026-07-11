@@ -426,6 +426,8 @@ final class FocusTrackingTerminalView: LocalProcessTerminalView {
             switch event.keyCode {
             case 2: // Shift+D -> new full (non-split) tab
                 store.newTerminalInActiveProject(); return true
+            case 17: // Shift+T -> restore recently closed terminal
+                store.restoreClosedTerminal(); return true
             default:
                 break
             }
@@ -538,6 +540,10 @@ struct TerminalHostView: NSViewRepresentable {
     func makeNSView(context: Context) -> FocusTrackingTerminalView {
         if let existing = Self.cache[session.id] {
             existing.onFocus = onFocus
+            // A restored tab (Cmd+Shift+T) reattaches after its previous
+            // coordinator was deallocated — rewire the weak delegate.
+            existing.processDelegate = context.coordinator
+            existing.store = store
             return existing
         }
         let view = FocusTrackingTerminalView(frame: .zero)
