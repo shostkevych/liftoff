@@ -223,6 +223,15 @@ final class Project: Identifiable {
         addTerminal()
     }
 
+    /// Rebuild a project around a restored session (Cmd+Shift+T after the
+    /// project's last tab was closed) instead of spawning a fresh shell.
+    init(folder: URL, restoring session: TerminalSession) {
+        self.folder = folder
+        terminals = [session]
+        activeTerminalID = session.id
+        visibleTerminalIDs = [session.id]
+    }
+
     @discardableResult
     func addTerminal() -> TerminalSession {
         let session = TerminalSession(title: "zsh", workingDirectory: folder)
@@ -271,6 +280,15 @@ final class Project: Identifiable {
         }
         onTerminalsChanged?()
     }
+
+    /// Cmd+Shift+T: put a closed session back at (or near) its old tab position.
+    func restoreTerminal(_ session: TerminalSession, at index: Int) {
+        terminals.insert(session, at: min(index, terminals.count))
+        activeTerminalID = session.id
+        visibleTerminalIDs = [session.id]
+        expandedTerminalID = nil
+        onTerminalsChanged?()
+    }
 }
 
 /// Layout state for the project-pane split, isolated into its own observable so
@@ -314,6 +332,11 @@ final class AppStore {
                 TerminalHostView.dispose(term)
             }
         }
+        for entry in closedTerminals {
+            entry.reaper.cancel()
+            TerminalHostView.dispose(entry.session)
+        }
+        closedTerminals.removeAll()
         projects.removeAll()
         bumpStructure()
         if Self.shared === self { Self.shared = Self.allStores.first { $0 !== self } }
@@ -1072,11 +1095,76 @@ final class AppStore {
         }
         guard let project = activeProject else { return }
         if let terminal = project.activeTerminal {
-            TerminalHostView.dispose(terminal)
-            project.closeTerminal(terminal)
+            closeTerminal(terminal, in: project)
+        } else if project.terminals.isEmpty {
+            closeProject(project)
         }
+    }
+
+    // MARK: Cmd+Shift+T — restore recently closed terminals.
+
+    /// A closed tab whose PTY is deliberately kept alive: the view stays in
+    /// TerminalHostView.cache, so scrollback and running processes survive
+    /// until the grace period ends or the entry is evicted.
+    private struct ClosedTerminal {
+        let session: TerminalSession
+        let projectFolder: URL
+        let index: Int
+        let reaper: Task<Void, Never>
+    }
+
+    @ObservationIgnored private var closedTerminals: [ClosedTerminal] = []
+    private static let closedTerminalLimit = 5
+    private static let closedTerminalGraceSeconds = 10
+
+    /// Close a tab without killing its shell: the session goes onto the
+    /// recently-closed stack and is only truly terminated after the grace
+    /// period, so an accidental Cmd+W is undoable via Cmd+Shift+T.
+    func closeTerminal(_ terminal: TerminalSession, in project: Project) {
+        guard let index = project.terminals.firstIndex(where: { $0.id == terminal.id }) else { return }
+        CompanionServer.shared.disconnectTerminal(terminal.id)
+        project.closeTerminal(terminal)
+
+        let reaper = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.closedTerminalGraceSeconds))
+            guard !Task.isCancelled else { return }
+            TerminalHostView.dispose(terminal)
+            self?.closedTerminals.removeAll { $0.session.id == terminal.id }
+        }
+        closedTerminals.append(ClosedTerminal(
+            session: terminal, projectFolder: project.folder, index: index, reaper: reaper
+        ))
+        if closedTerminals.count > Self.closedTerminalLimit {
+            let evicted = closedTerminals.removeFirst()
+            evicted.reaper.cancel()
+            TerminalHostView.dispose(evicted.session)
+        }
+
         if project.terminals.isEmpty {
             closeProject(project)
         }
+    }
+
+    /// Cmd+Shift+T: bring back the most recently closed terminal with its
+    /// shell still running. Reopens the owning project if it was closed too.
+    func restoreClosedTerminal() {
+        guard let entry = closedTerminals.popLast() else { return }
+        entry.reaper.cancel()
+
+        if let project = projects.first(where: {
+            $0.folder.standardizedFileURL.path == entry.projectFolder.standardizedFileURL.path
+        }) {
+            project.restoreTerminal(entry.session, at: entry.index)
+            selectedProjectIDs = [project.id]
+            activeProjectID = project.id
+        } else {
+            let project = Project(folder: entry.projectFolder, restoring: entry.session)
+            project.onTerminalsChanged = { [weak self] in self?.bumpStructure() }
+            projects.append(project)
+            selectedProjectIDs = [project.id]
+            activeProjectID = project.id
+            expandedProjectID = nil
+        }
+        bumpStructure()
     }
 }

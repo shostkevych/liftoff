@@ -380,12 +380,7 @@ final class CompanionServer {
         guard let (store, project) = storeAndProject(forTerminal: id),
               let term = project.terminals.first(where: { $0.id == id }) else { return }
 
-        disconnectTerminal(id)
-        TerminalHostView.dispose(term)
-        project.closeTerminal(term)
-        if project.terminals.isEmpty {
-            store.closeProject(project)
-        }
+        store.closeTerminal(term, in: project)
         broadcastSessions()
     }
 

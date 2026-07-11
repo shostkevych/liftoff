@@ -535,11 +535,7 @@ struct ProjectPane: View {
                         store.activeProjectID = project.id
                     },
                     close: {
-                        TerminalHostView.dispose(terminal)
-                        project.closeTerminal(terminal)
-                        if project.terminals.isEmpty {
-                            store.closeProject(project)
-                        }
+                        store.closeTerminal(terminal, in: project)
                     }
                 )
                 .frame(maxWidth: .infinity)
@@ -554,11 +550,7 @@ struct ProjectPane: View {
                     }
                     Divider()
                     Button("Close Terminal") {
-                        TerminalHostView.dispose(terminal)
-                        project.closeTerminal(terminal)
-                        if project.terminals.isEmpty {
-                            store.closeProject(project)
-                        }
+                        store.closeTerminal(terminal, in: project)
                     }
                 }
             }

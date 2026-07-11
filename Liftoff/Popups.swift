@@ -695,6 +695,7 @@ struct HelpPopup: View {
         ]),
         ("Terminals", [
             ("⌘T", "New terminal tab in focused project"),
+            ("⌘⇧T", "Restore closed terminal — shell kept alive 10 s"),
             ("⌘D", "Split focused terminal — new tab when the pane is narrow"),
             ("⌘L", "Toggle terminal tab bars (all projects)"),
             ("⌘= / ⌘-", "Zoom all terminals"),
