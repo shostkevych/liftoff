@@ -4,6 +4,12 @@ Newest release on top. Each `## <version>` section is shown in-app: in the
 "What's New" popup after an update, and (via release.sh) in Sparkle's update
 prompt.
 
+## 1.9
+
+- New: Cmd+Shift+T restores a recently closed terminal tab — the shell is kept alive for 10 seconds after closing, so scrollback and running processes come back exactly as they were
+- Restoring works from any close path (Cmd+W, tab ✕, right-click, Liftoff Air), and reopens the project pane if closing the tab closed it
+- Up to 5 closed tabs can be restored, newest first
+
 ## 1.8
 
 - New: rename tabs — press Cmd+R or right-click a tab to set a custom name; programs running inside the terminal can't overwrite it
