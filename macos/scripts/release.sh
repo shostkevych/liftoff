@@ -25,8 +25,9 @@ SHORT_VERSION="${1:?usage: release.sh <marketing-version> <build-number>}"
 BUILD_NUMBER="${2:?usage: release.sh <marketing-version> <build-number>}"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO="$(cd "$ROOT/.." && pwd)"
 BUILD_DIR="$ROOT/build"
-RELEASES="$ROOT/site/public/releases"
+RELEASES="$REPO/site/public/releases"
 TOOLS="$ROOT/.sparkle-tools"
 SPARKLE_VERSION="2.6.4"
 DOWNLOAD_PREFIX="https://liftoff.shostkevych.com/releases/"
@@ -131,11 +132,11 @@ echo "› Generating appcast (signs with your Keychain EdDSA key)…"
 "$TOOLS/bin/generate_appcast" --embed-release-notes --download-url-prefix "$DOWNLOAD_PREFIX" "$RELEASES"
 
 # generate_appcast writes releases/appcast.xml; the feed lives at site root.
-cp "$RELEASES/appcast.xml" "$ROOT/site/public/appcast.xml"
+cp "$RELEASES/appcast.xml" "$REPO/site/public/appcast.xml"
 
 # Keep the site's /changelog page in sync (site/changelog.md is baked into
 # the page at Docker build time).
-cp "$ROOT/CHANGELOG.md" "$ROOT/site/changelog.md"
+cp "$ROOT/CHANGELOG.md" "$REPO/site/changelog.md"
 
 echo "✓ Done. Review and deploy:"
 echo "    site/public/appcast.xml"

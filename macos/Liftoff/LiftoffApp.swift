@@ -84,6 +84,7 @@ private struct RootView: View {
         Updater.shared.start()
         StatusBarController.shared.install()
         FocusTrackingTerminalView.installKeyboardShortcuts()
+        InstantTerminalController.shared.registerHotKey()
         if let store = AppStore.shared {
             SleepGuard.shared.apply(store.keepAwake)
             store.restorePinnedProjects()

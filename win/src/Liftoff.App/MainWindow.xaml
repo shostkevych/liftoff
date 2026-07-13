@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="Liftoff.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="220" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Left rail: projects (top-level tabs, macOS "projects × terminals") -->
+        <Grid Grid.Column="0" Background="#252526">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Text="Projects" Margin="12,12,12,6"
+                       FontWeight="SemiBold" Foreground="#CCCCCC" />
+
+            <ListView Grid.Row="1" x:Name="ProjectList"
+                      SelectionChanged="OnProjectSelected"
+                      Background="Transparent" />
+
+            <Button Grid.Row="2" Content="+ Add Project" Margin="12"
+                    HorizontalAlignment="Stretch" Click="OnAddProject" />
+        </Grid>
+
+        <!-- Right: terminals for the selected project -->
+        <controls:TabView Grid.Column="1" x:Name="Terminals"
+                          AddTabButtonClick="OnAddTerminal"
+                          TabCloseRequested="OnCloseTerminal" />
+    </Grid>
+</Window>

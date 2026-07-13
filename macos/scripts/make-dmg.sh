@@ -13,11 +13,12 @@ NOTARY_PROFILE="${NOTARY_PROFILE:-liftoff-notary}"
 SIGN_ID="Developer ID Application: Oleh Shostkevych (696F3B97CX)"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO="$(cd "$ROOT/.." && pwd)"
 APP="$ROOT/build/export/Liftoff.app"
 # DMGs live in their own dir (NOT site/public/releases) so Sparkle's
 # generate_appcast — which scans releases/ — never sees a .dmg + .zip for the
 # same bundle version and aborts on the duplicate.
-DMG_DIR="$ROOT/site/public/dmg"
+DMG_DIR="$REPO/site/public/dmg"
 mkdir -p "$DMG_DIR"
 DMG="$DMG_DIR/Liftoff-${SHORT_VERSION}.dmg"
 

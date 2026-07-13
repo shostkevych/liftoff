@@ -1,0 +1,9 @@
+# .NET / Visual Studio build artifacts
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+# Generated
+Generated Files/

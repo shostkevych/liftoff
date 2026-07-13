@@ -28,6 +28,7 @@
 		8B032F8B3080E4F3C0B931E2 /* CHANGELOG.md in Resources */ = {isa = PBXBuildFile; fileRef = 81E22E8877EA8F75745B4922 /* CHANGELOG.md */; };
 		96D7B948351B7CBE858E2270 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 01F8AD66ADDED893BFAAF557 /* SwiftTerm */; };
 		9D5E2ADAE24707D58BFD1451 /* WindowChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54FEEEA0946878E6AEB8EC3F /* WindowChrome.swift */; };
+		1A2B3C4D5E6F708192A3B4C5 /* InstantTerminal.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5B4A392817060F5E4D3C2B1 /* InstantTerminal.swift */; };
 		A1DA346962B578E097844D5D /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E70D14647BCDF1300E9A6D9 /* QRScannerView.swift */; };
 		AAAFD58C170625C931CB8110 /* AirPing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 160261D0884567A287F2437C /* AirPing.swift */; };
 		AB7A899950421182A667FF27 /* StatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96323D9D95DF9D9E7C91AC54 /* StatusBar.swift */; };
@@ -72,10 +73,11 @@
 		3C303AD35206058DCBE9AB57 /* WhatsNew.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNew.swift; sourceTree = "<group>"; };
 		3E1722A26A1A852A2C63A6D6 /* Onboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Onboarding.swift; sourceTree = "<group>"; };
 		4566DE507A0AC3EED8F4ABE0 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
-		45E769AF3A9C3665ED2E2AB4 /* web */ = {isa = PBXFileReference; lastKnownFileType = folder; path = web; sourceTree = SOURCE_ROOT; };
+		45E769AF3A9C3665ED2E2AB4 /* web */ = {isa = PBXFileReference; lastKnownFileType = folder; name = web; path = ../web; sourceTree = SOURCE_ROOT; };
 		51199487A0E4D0AD4FDFC6E6 /* NotificationServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationServer.swift; sourceTree = "<group>"; };
 		5491958D70864D173BD20A1E /* TerminalHostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalHostView.swift; sourceTree = "<group>"; };
 		54FEEEA0946878E6AEB8EC3F /* WindowChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowChrome.swift; sourceTree = "<group>"; };
+		C5B4A392817060F5E4D3C2B1 /* InstantTerminal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstantTerminal.swift; sourceTree = "<group>"; };
 		56816FDB7CE9C65A6A69ED0F /* Crypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Crypto.swift; sourceTree = "<group>"; };
 		60589902845A2D9BE751CE7E /* CompanionClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionClient.swift; sourceTree = "<group>"; };
 		6EFD82C999B1A2F78D63A924 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
@@ -149,6 +151,7 @@
 				7D9B7B1FB3E15D3CC6799507 /* WelcomeGuide.swift */,
 				3C303AD35206058DCBE9AB57 /* WhatsNew.swift */,
 				54FEEEA0946878E6AEB8EC3F /* WindowChrome.swift */,
+				C5B4A392817060F5E4D3C2B1 /* InstantTerminal.swift */,
 			);
 			path = Liftoff;
 			sourceTree = "<group>";
@@ -364,6 +367,7 @@
 				DFF8B09E3C3648EDD3CEFBB6 /* WelcomeGuide.swift in Sources */,
 				8642575A925F86E782209E03 /* WhatsNew.swift in Sources */,
 				9D5E2ADAE24707D58BFD1451 /* WindowChrome.swift in Sources */,
+				1A2B3C4D5E6F708192A3B4C5 /* InstantTerminal.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

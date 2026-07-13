@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="icon.png" width="96" alt="Liftoff icon">
+  <img src="macos/icon.png" width="96" alt="Liftoff icon">
 </p>
 
 <h1 align="center">Liftoff</h1>
@@ -25,13 +25,13 @@ Watch and steer Claude Code, Codex, Gemini and more — from your Mac, your phon
 
 | Path | What it is |
 |---|---|
-| `Liftoff/` | macOS app (SwiftUI) |
-| `LiftoffAir/` | iOS companion app |
-| `SwiftTerm/` | vendored fork of [migueldeicaza/SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (MIT) |
+| `macos/Liftoff/` | macOS app (SwiftUI) |
+| `macos/LiftoffAir/` | iOS companion app |
+| `macos/SwiftTerm/` | vendored fork of [migueldeicaza/SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (MIT) |
 | `web/` | bundled web client served by the app |
 | `site/` | Next.js marketing site |
-| `scripts/` | release pipeline: build, sign, notarize, DMG, appcast |
-| `project.yml` | [XcodeGen](https://github.com/yonaskolb/XcodeGen) project definition |
+| `macos/scripts/` | release pipeline: build, sign, notarize, DMG, appcast |
+| `macos/project.yml` | [XcodeGen](https://github.com/yonaskolb/XcodeGen) project definition |
 
 ## Building from source
 
@@ -39,14 +39,14 @@ Requirements: Xcode 16+, [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`bre
 
 ```bash
 git clone https://github.com/<you>/liftoff.git
-cd liftoff
+cd liftoff/macos
 xcodegen                      # regenerates Liftoff.xcodeproj from project.yml
 open Liftoff.xcodeproj        # build the Liftoff (macOS) or LiftoffAir (iOS) scheme
 ```
 
 The checked-in project uses the author's signing team; switch the targets to your own team (or automatic signing) in Xcode, or edit `DEVELOPMENT_TEAM` in `project.yml` and rerun `xcodegen`.
 
-Release builds (`scripts/release.sh`, `scripts/build-dmg.sh`) additionally need a Developer ID certificate and a `notarytool` keychain profile — see the comments at the top of each script.
+Release builds (`macos/scripts/release.sh`, `macos/scripts/build-dmg.sh`) additionally need a Developer ID certificate and a `notarytool` keychain profile — see the comments at the top of each script.
 
 ## License
 
