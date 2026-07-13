@@ -4,6 +4,12 @@ Newest release on top. Each `## <version>` section is shown in-app: in the
 "What's New" popup after an update, and (via release.sh) in Sparkle's update
 prompt.
 
+## 1.10
+
+- New: Instant Terminal — press Cmd+I anywhere, even when Liftoff isn't the active app, to summon a floating shell at your home folder, centered on the screen under your cursor
+- Each summon starts a fresh shell and focuses it immediately, so you can start typing right away; press Cmd+I again to dismiss
+- It floats above other apps, so you can click out to copy something and paste it back — drag the grip in the top-right corner to reposition it
+
 ## 1.9
 
 - New: Cmd+Shift+T restores a recently closed terminal tab — the shell is kept alive for 10 seconds after closing, so scrollback and running processes come back exactly as they were
