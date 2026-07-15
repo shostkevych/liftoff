@@ -2,6 +2,15 @@ import Foundation
 import Network
 import CryptoKit
 
+private final class MacRelayWebSocketDelegate: NSObject, URLSessionWebSocketDelegate {
+    var onOpen: (() -> Void)?
+
+    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
+                    didOpenWithProtocol protocol: String?) {
+        onOpen?()
+    }
+}
+
 /// LAN/VPN server that lets the iOS companion app list open projects/tabs,
 /// attach to a terminal, stream its raw PTY output, and send input.
 ///
@@ -23,10 +32,19 @@ import CryptoKit
 final class CompanionServer {
     static let shared = CompanionServer()
     static let port: UInt16 = 48624
+    static let relayStatusChanged = Notification.Name("LiftoffRelayStatusChanged")
+
+    private(set) var isRelayLive = false
 
     private var listener: NWListener?
     static let wsPort: UInt16 = 48625
     private var wsListener: NWListener?
+    private var relayTask: URLSessionWebSocketTask?
+    private var relaySession: URLSession?
+    private var relayDelegate: MacRelayWebSocketDelegate?
+    private var relayClient: Client?
+    private var relayGeneration = 0
+    private var relayBackoff: TimeInterval = 1
 
     /// Shared encryption key derived from the pairing token.
     private var cryptoKey: SymmetricKey {
@@ -37,20 +55,47 @@ final class CompanionServer {
     private var token: String { SettingsStore.load().companionToken }
 
     private final class Client {
-        let connection: NWConnection
-        let isWS: Bool
+        enum Transport {
+            case tcp(NWConnection)
+            case browser(NWConnection)
+            case relay(URLSessionWebSocketTask)
+
+            var connection: NWConnection? {
+                switch self {
+                case .tcp(let connection), .browser(let connection): connection
+                case .relay: nil
+                }
+            }
+        }
+
+        let id = UUID()
+        let transport: Transport
         var attached: UUID?
         var inbox = Data()
         var authed: Bool
         init(_ c: NWConnection, isWS: Bool) {
-            connection = c
-            self.isWS = isWS
+            transport = isWS ? .browser(c) : .tcp(c)
             authed = false // both TCP (companion) and WS clients must auth
+        }
+
+        init(relay task: URLSessionWebSocketTask) {
+            transport = .relay(task)
+            authed = true // possession of the capability bearer authenticates the peer
+        }
+
+        var isBrowser: Bool {
+            if case .browser = transport { return true }
+            return false
+        }
+
+        var isRelay: Bool {
+            if case .relay = transport { return true }
+            return false
         }
     }
 
-    private var clients: [ObjectIdentifier: Client] = [:]
-    private var subscribers: [UUID: Set<ObjectIdentifier>] = [:]
+    private var clients: [UUID: Client] = [:]
+    private var subscribers: [UUID: Set<UUID>] = [:]
 
     private init() {}
 
@@ -81,13 +126,15 @@ final class CompanionServer {
             wsListener.start(queue: .main)
             self.wsListener = wsListener
         }
+
+        startRelay()
     }
 
     // MARK: Connection lifecycle
 
     private func accept(_ conn: NWConnection, isWS: Bool) {
         let client = Client(conn, isWS: isWS)
-        clients[ObjectIdentifier(conn)] = client
+        clients[client.id] = client
         conn.stateUpdateHandler = { [weak self] state in
             switch state {
             case .failed, .cancelled:
@@ -101,7 +148,8 @@ final class CompanionServer {
     }
 
     private func receiveWS(_ client: Client) {
-        client.connection.receiveMessage { [weak self] data, _, _, error in
+        guard let connection = client.transport.connection else { return }
+        connection.receiveMessage { [weak self] data, _, _, error in
             Task { @MainActor in
                 guard let self else { return }
                 if let data, !data.isEmpty { self.handle(line: data, from: client) }
@@ -115,7 +163,8 @@ final class CompanionServer {
     }
 
     private func receive(_ client: Client) {
-        client.connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
+        guard let connection = client.transport.connection else { return }
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
             Task { @MainActor in
                 guard let self else { return }
                 if let data, !data.isEmpty {
@@ -132,13 +181,145 @@ final class CompanionServer {
     }
 
     private func disconnect(_ client: Client) {
-        let oid = ObjectIdentifier(client.connection)
-        guard clients[oid] != nil else { return }
+        guard clients[client.id] != nil else { return }
         if let tid = client.attached {
-            release(tid, oid)
+            release(tid, client.id)
         }
-        clients[oid] = nil
-        client.connection.cancel()
+        clients[client.id] = nil
+        client.transport.connection?.cancel()
+        if client.isRelay, relayClient === client {
+            relayClient = nil
+        }
+    }
+
+    // MARK: Cloud relay
+
+    /// Pairing remains local, and terminal payloads retain the same ChaCha
+    /// encryption used by direct companion TCP connections. The relay only
+    /// routes each WebSocket message and does not participate in the protocol.
+    private func startRelay() {
+        guard relayTask == nil, relayClient == nil else { return }
+        let pairingToken = token
+        guard !pairingToken.isEmpty,
+              let url = Self.relayURL(pairingToken: pairingToken) else { return }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 20
+        request.setValue("Bearer \(Self.relayCapability(pairingToken))", forHTTPHeaderField: "Authorization")
+
+        relayGeneration += 1
+        let generation = relayGeneration
+        setRelayLive(false)
+        let delegate = MacRelayWebSocketDelegate()
+        let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+        let task = session.webSocketTask(with: request)
+        let client = Client(relay: task)
+        delegate.onOpen = { [weak self, weak client] in
+            Task { @MainActor in
+                guard let self, let client,
+                      generation == self.relayGeneration,
+                      self.relayClient === client else { return }
+                self.setRelayLive(true)
+            }
+        }
+        relayDelegate = delegate
+        relaySession = session
+        relayTask = task
+        relayClient = client
+        clients[client.id] = client
+        task.resume()
+        receiveRelay(client, generation: generation)
+        scheduleRelayKeepalive(client, generation: generation)
+    }
+
+    private func receiveRelay(_ client: Client, generation: Int) {
+        guard generation == relayGeneration,
+              relayClient === client,
+              case .relay(let task) = client.transport else { return }
+        task.receive { [weak self, weak client] result in
+            Task { @MainActor in
+                guard let self, let client,
+                      generation == self.relayGeneration,
+                      self.relayClient === client else { return }
+                switch result {
+                case .success(let message):
+                    let encrypted: Data?
+                    switch message {
+                    case .data(let value): encrypted = value
+                    case .string: encrypted = nil
+                    @unknown default: encrypted = nil
+                    }
+                    if let encrypted, !encrypted.isEmpty, encrypted.count <= 1_000_000,
+                       let data = try? LiftoffCrypto.decrypt(encrypted, using: self.cryptoKey) {
+                        self.relayBackoff = 1
+                        self.handle(line: data, from: client)
+                    }
+                    self.receiveRelay(client, generation: generation)
+                case .failure:
+                    self.relayFailed(client)
+                }
+            }
+        }
+    }
+
+    private func relayFailed(_ client: Client) {
+        guard relayClient === client else { return }
+        setRelayLive(false)
+        let delay = relayBackoff
+        relayBackoff = min(relayBackoff * 2, 30)
+        relayGeneration += 1
+        relayTask?.cancel(with: .goingAway, reason: nil)
+        relaySession?.invalidateAndCancel()
+        relayTask = nil
+        relaySession = nil
+        relayDelegate = nil
+        disconnect(client)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.startRelay()
+        }
+    }
+
+    private func setRelayLive(_ live: Bool) {
+        guard isRelayLive != live else { return }
+        isRelayLive = live
+        NotificationCenter.default.post(name: Self.relayStatusChanged, object: live)
+    }
+
+    private func scheduleRelayKeepalive(_ client: Client, generation: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 120) { [weak self, weak client] in
+            guard let self, let client,
+                  generation == self.relayGeneration,
+                  self.relayClient === client else { return }
+            self.send(["t": "relayping"], to: client)
+            self.scheduleRelayKeepalive(client, generation: generation)
+        }
+    }
+
+    private static func relayURL(pairingToken: String) -> URL? {
+        let configured = UserDefaults.standard.string(forKey: "relayBaseURL")?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = (configured?.isEmpty == false) ? configured! : "wss://relay.shostkevych.com"
+        guard var components = URLComponents(string: base) else { return nil }
+        components.path = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        components.path = "/" + ([components.path, "v1/relay"]
+            .filter { !$0.isEmpty }
+            .joined(separator: "/"))
+        let session = relayDigest("liftoff-relay-session-v1:" + pairingToken)
+        components.queryItems = [
+            URLQueryItem(name: "user", value: String(session.prefix(16))),
+            URLQueryItem(name: "session", value: session),
+            URLQueryItem(name: "device", value: "mac"),
+            URLQueryItem(name: "role", value: "host"),
+        ]
+        return components.url
+    }
+
+    private static func relayCapability(_ pairingToken: String) -> String {
+        relayDigest("liftoff-relay-capability-v1:" + pairingToken)
+    }
+
+    private static func relayDigest(_ value: String) -> String {
+        SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
     // MARK: Framing
@@ -163,7 +344,7 @@ final class CompanionServer {
         // --- Auth for TCP (companion) clients ---
         // Raw TCP clients must present the pairing token before any command.
         // The token is embedded in the QR code and unique per Mac.
-        if !client.isWS && !client.authed {
+        if !client.isBrowser && !client.isRelay && !client.authed {
             if t == "auth" {
                 let expected = token
                 guard !expected.isEmpty else {
@@ -183,7 +364,7 @@ final class CompanionServer {
         }
 
         // --- Auth for WebSocket (browser) clients ---
-        if client.isWS && !client.authed {
+        if client.isBrowser && !client.authed {
             let password = SettingsStore.webPassword
             guard !password.isEmpty else {
                 send(["t": "blocked"], to: client)
@@ -219,7 +400,7 @@ final class CompanionServer {
                 // Fail closed: drop input that won't decrypt rather than typing
                 // raw ciphertext into the user's real terminal.
                 let raw: Data?
-                if client.isWS {
+                if client.isBrowser {
                     raw = payload
                 } else {
                     raw = try? LiftoffCrypto.decrypt(payload, using: cryptoKey)
@@ -232,7 +413,7 @@ final class CompanionServer {
                let decoded = Data(base64Encoded: b64),
                let view = TerminalHostView.cache[id] {
                 let data: Data?
-                if client.isWS {
+                if client.isBrowser {
                     data = decoded
                 } else {
                     data = try? LiftoffCrypto.decrypt(decoded, using: cryptoKey)
@@ -249,7 +430,7 @@ final class CompanionServer {
             }
         case "detach":
             if let id = client.attached {
-                release(id, ObjectIdentifier(client.connection))
+                release(id, client.id)
                 client.attached = nil
             }
         case "recents":
@@ -427,10 +608,10 @@ final class CompanionServer {
 
     private func attach(_ client: Client, to id: UUID) {
         if let prev = client.attached {
-            release(prev, ObjectIdentifier(client.connection))
+            release(prev, client.id)
         }
         client.attached = id
-        subscribers[id, default: []].insert(ObjectIdentifier(client.connection))
+        subscribers[id, default: []].insert(client.id)
         updateControlled()
 
         guard let view = TerminalHostView.cache[id] else { return }
@@ -449,7 +630,7 @@ final class CompanionServer {
     /// drops undecryptable frames anyway, so the fallback only leaked data.
     private func sendSnapshot(_ data: Data, to client: Client) {
         let payload: String
-        if client.isWS {
+        if client.isBrowser {
             payload = data.base64EncodedString()
         } else {
             guard let enc = try? LiftoffCrypto.encrypt(data, using: cryptoKey) else { return }
@@ -481,7 +662,7 @@ final class CompanionServer {
             var kind: RemoteKind?
             for oid in oids {
                 guard let c = clients[oid] else { continue }
-                if c.isWS { kind = .web; break }
+                if c.isBrowser { kind = .web; break }
                 kind = .mobile
             }
             if let kind { map[tid] = kind }
@@ -497,7 +678,7 @@ final class CompanionServer {
         }
     }
 
-    private func release(_ terminalID: UUID, _ oid: ObjectIdentifier) {
+    private func release(_ terminalID: UUID, _ oid: UUID) {
         subscribers[terminalID]?.remove(oid)
         if subscribers[terminalID]?.isEmpty ?? true {
             subscribers[terminalID] = nil
@@ -514,7 +695,7 @@ final class CompanionServer {
         for oid in oids {
             guard let client = clients[oid] else { continue }
             let payload: String
-            if client.isWS {
+            if client.isBrowser {
                 payload = bytes.base64EncodedString()
             } else {
                 // Fail closed — no plaintext fallback (see sendSnapshot).
@@ -529,13 +710,23 @@ final class CompanionServer {
 
     private func send(_ dict: [String: Any], to client: Client) {
         guard var data = try? JSONSerialization.data(withJSONObject: dict) else { return }
-        if client.isWS {
+        if client.isBrowser {
             let meta = NWProtocolWebSocket.Metadata(opcode: .text)
             let context = NWConnection.ContentContext(identifier: "send", metadata: [meta])
-            client.connection.send(content: data, contentContext: context, completion: .contentProcessed { _ in })
+            client.transport.connection?.send(content: data, contentContext: context, completion: .contentProcessed { _ in })
+        } else if case .relay(let task) = client.transport {
+            // Encrypt the complete application frame, including session names
+            // and protocol commands. The relay sees only opaque ciphertext.
+            guard let encrypted = try? LiftoffCrypto.encrypt(data, using: cryptoKey) else { return }
+            task.send(.data(encrypted)) { [weak self, weak client] error in
+                guard error != nil, let client else { return }
+                Task { @MainActor in
+                    self?.relayFailed(client)
+                }
+            }
         } else {
             data.append(0x0A)
-            client.connection.send(content: data, completion: .contentProcessed { _ in })
+            client.transport.connection?.send(content: data, completion: .contentProcessed { _ in })
         }
     }
 

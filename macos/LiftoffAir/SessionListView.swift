@@ -55,7 +55,7 @@ struct SessionListView: View {
                         VStack(spacing: 18) {
                             header
                             if groups.isEmpty && client.state != "connected" {
-                                Text("Connecting to \(client.host)…")
+                                Text("Connecting…")
                                     .font(.system(size: 13))
                                     .foregroundStyle(.secondary)
                                     .padding(.top, 40)
@@ -155,9 +155,6 @@ struct SessionListView: View {
         .onChange(of: client.state) { _, new in
             if new != "connected" {
                 if !path.isEmpty { path.removeAll() }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                    if client.state != "connected" { client.connect() }
-                }
             }
         }
         .onChange(of: client.hasLoaded) { _, loaded in
@@ -203,7 +200,7 @@ struct SessionListView: View {
             ProgressView()
                 .controlSize(.large)
                 .tint(.brand)
-            Text("Connecting to \(client.host)…")
+            Text("Connecting…")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
         }
@@ -242,6 +239,7 @@ struct SessionListView: View {
         client.disconnect()
         let defaults = UserDefaults.standard
         defaults.removeObject(forKey: "companionHost")
+        defaults.removeObject(forKey: "companionHosts")
         defaults.removeObject(forKey: "companionToken")
         companionHost = ""
         paired = false
@@ -259,7 +257,8 @@ struct SessionListView: View {
     private var statusInfo: (label: String, color: Color) {
         switch client.state {
         case "connected":
-            return ("Live", Color(red: 0.42, green: 0.82, blue: 0.42))
+            return (client.connectionKind == "relay" ? "Relay" : "Direct",
+                    Color(red: 0.42, green: 0.82, blue: 0.42))
         case let s where s.hasPrefix("failed"):
             return ("Can't connect", Color(red: 0.91, green: 0.43, blue: 0.29))
         default:

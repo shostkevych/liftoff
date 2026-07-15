@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		03376AF7BC3F6DE17E1C5A63 /* MarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28789D6C52966AE93B599E24 /* MarkdownText.swift */; };
 		13F0A8BF75F108D7BEF6BE92 /* Crypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56816FDB7CE9C65A6A69ED0F /* Crypto.swift */; };
+		1A2B3C4D5E6F708192A3B4C5 /* InstantTerminal.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5B4A392817060F5E4D3C2B1 /* InstantTerminal.swift */; };
 		1E4C01CC6FF6B3EF8DE0607C /* icon.png in Resources */ = {isa = PBXBuildFile; fileRef = 1307C7DE438CB002F94D2141 /* icon.png */; };
 		2ADFF2501951B8630E8481C4 /* RecentsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4C5FE348447AC2BBD99EF8 /* RecentsSheet.swift */; };
 		3231DCB8BBCE15D23237EB4F /* icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 85B746224474E2E3ECD32301 /* icon.icon */; };
@@ -28,7 +29,6 @@
 		8B032F8B3080E4F3C0B931E2 /* CHANGELOG.md in Resources */ = {isa = PBXBuildFile; fileRef = 81E22E8877EA8F75745B4922 /* CHANGELOG.md */; };
 		96D7B948351B7CBE858E2270 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 01F8AD66ADDED893BFAAF557 /* SwiftTerm */; };
 		9D5E2ADAE24707D58BFD1451 /* WindowChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54FEEEA0946878E6AEB8EC3F /* WindowChrome.swift */; };
-		1A2B3C4D5E6F708192A3B4C5 /* InstantTerminal.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5B4A392817060F5E4D3C2B1 /* InstantTerminal.swift */; };
 		A1DA346962B578E097844D5D /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E70D14647BCDF1300E9A6D9 /* QRScannerView.swift */; };
 		AAAFD58C170625C931CB8110 /* AirPing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 160261D0884567A287F2437C /* AirPing.swift */; };
 		AB7A899950421182A667FF27 /* StatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96323D9D95DF9D9E7C91AC54 /* StatusBar.swift */; };
@@ -77,7 +77,6 @@
 		51199487A0E4D0AD4FDFC6E6 /* NotificationServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationServer.swift; sourceTree = "<group>"; };
 		5491958D70864D173BD20A1E /* TerminalHostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalHostView.swift; sourceTree = "<group>"; };
 		54FEEEA0946878E6AEB8EC3F /* WindowChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowChrome.swift; sourceTree = "<group>"; };
-		C5B4A392817060F5E4D3C2B1 /* InstantTerminal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstantTerminal.swift; sourceTree = "<group>"; };
 		56816FDB7CE9C65A6A69ED0F /* Crypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Crypto.swift; sourceTree = "<group>"; };
 		60589902845A2D9BE751CE7E /* CompanionClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionClient.swift; sourceTree = "<group>"; };
 		6EFD82C999B1A2F78D63A924 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
@@ -85,9 +84,9 @@
 		81E22E8877EA8F75745B4922 /* CHANGELOG.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CHANGELOG.md; sourceTree = "<group>"; };
 		858D0ED5B404813FBA55D41B /* SessionListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListView.swift; sourceTree = "<group>"; };
 		85B746224474E2E3ECD32301 /* icon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = icon.icon; sourceTree = "<group>"; };
-		881FD7201A16B83DA34EDC4B /* notification.caf */ = {isa = PBXFileReference; path = notification.caf; sourceTree = "<group>"; };
+		881FD7201A16B83DA34EDC4B /* notification.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = notification.caf; sourceTree = "<group>"; };
 		8B57CD3EE9E91F07F3DEE927 /* Updater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Updater.swift; sourceTree = "<group>"; };
-		92E26F538ADE832FB2E597E4 /* LiftoffAir.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LiftoffAir.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		92E26F538ADE832FB2E597E4 /* LiftoffAir.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LiftoffAir.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		94C7E8FE78ED021D0520D56D /* Liftoff.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Liftoff.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		95FD7CCCBB822059DA51738F /* HookSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookSetup.swift; sourceTree = "<group>"; };
 		96323D9D95DF9D9E7C91AC54 /* StatusBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBar.swift; sourceTree = "<group>"; };
@@ -95,11 +94,12 @@
 		A05D9ABCCD98F831FA9AF42C /* ProjectPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPicker.swift; sourceTree = "<group>"; };
 		A746EC67BBDCF1F1ABEA49EA /* LiftoffApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiftoffApp.swift; sourceTree = "<group>"; };
 		B2CA2BA9646BBAB41AB39212 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
-		B803B53A93B485F1D122C8D7 /* SwiftTerm */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SwiftTerm; path = SwiftTerm; sourceTree = SOURCE_ROOT; };
+		B803B53A93B485F1D122C8D7 /* SwiftTerm */ = {isa = PBXFileReference; lastKnownFileType = folder; path = SwiftTerm; sourceTree = SOURCE_ROOT; };
+		C5B4A392817060F5E4D3C2B1 /* InstantTerminal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstantTerminal.swift; sourceTree = "<group>"; };
 		CE6AD494AF88E813D6B6B7C8 /* Popups.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popups.swift; sourceTree = "<group>"; };
 		E9D9DFEFE46D1408689FE39A /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
 		F1959883A235690B507FAC5F /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
-		F4B72799C96C9ABE26375302 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		F4B72799C96C9ABE26375302 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		FB4C5FE348447AC2BBD99EF8 /* RecentsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentsSheet.swift; sourceTree = "<group>"; };
 		FFC2EC6B6CE211529E1CA9A6 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -381,7 +381,7 @@
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 696F3B97CX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -390,7 +390,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.11;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shostkevych.liftoff;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.10;
@@ -474,7 +474,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shostkevych.liftoff.air;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.10;
@@ -496,7 +496,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shostkevych.liftoff.air;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.10;
@@ -511,7 +511,7 @@
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 696F3B97CX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -520,7 +520,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.11;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shostkevych.liftoff;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.10;

@@ -25,6 +25,8 @@ SIGN_IDENTITY="${SIGN_IDENTITY:-Developer ID Application}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-liftoff-notary}"
 SKIP_NOTARIZE="${SKIP_NOTARIZE:-0}"
 SKIP_XCODEGEN="${SKIP_XCODEGEN:-0}"
+VERSION="${VERSION:-1.0}"
+BUILD_NUMBER="${BUILD_NUMBER:-1}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT="$ROOT/$APP_NAME.xcodeproj"
@@ -75,6 +77,8 @@ xcodebuild archive \
   CODE_SIGN_STYLE=Manual \
   CODE_SIGN_IDENTITY="$SIGN_IDENTITY" \
   DEVELOPMENT_TEAM="$TEAM_ID" \
+  MARKETING_VERSION="$VERSION" \
+  CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
   -quiet
 ok "Archived → $ARCHIVE"
 
@@ -106,7 +110,6 @@ codesign --verify --deep --strict --verbose=2 "$APP" 2>&1 | tail -1
 codesign -d --entitlements - --verbose=2 "$APP" >/dev/null 2>&1 || true
 ok "Signature verified"
 
-VERSION="${VERSION:-$(defaults read "$APP/Contents/Info" CFBundleShortVersionString 2>/dev/null || echo 1.0)}"
 DMG="$BUILD/$APP_NAME-$VERSION.dmg"
 
 # ---------------------------------------------------------------- notarize

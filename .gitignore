@@ -40,3 +40,6 @@ site/public/review-demo.mp4
 # Private deployment notes & local tooling (never part of the public repo)
 CLAUDE.md
 .hawkfile
+
+# Private Liftoff relay server and deployment source
+relay/

@@ -329,8 +329,8 @@ export default function Home() {
               <h2 className="display">Your terminals, in your pocket.</h2>
               <p>
                 Agents run for minutes — with Air you don&apos;t have to sit and
-                watch. Mirror any terminal to your phone or a browser over your
-                own network: live output, and type back from anywhere.
+                watch. Mirror any terminal to your phone from anywhere, with a
+                seamless Direct connection at home and encrypted Relay access away.
               </p>
               <div className="air-steps">
                 <div className="air-step"><span className="n">1</span> Pair with a QR scan, secured by Face ID.</div>
@@ -402,23 +402,23 @@ export default function Home() {
           <div className="wrap">
             <div className="priv-head">
               <span className="kicker">Full privacy</span>
-              <h2 className="display">No middlemen. No cloud.</h2>
+              <h2 className="display">Private, even through the cloud.</h2>
               <p>
-                Air never routes through our servers — because there are none.
-                Your terminals stream directly between your devices over your own
-                network. We can&apos;t see them, and neither can anyone else.
+                Air encrypts the complete relayed session end to end. The thin relay
+                only connects your devices and forwards opaque ciphertext; it never
+                receives the pairing key and cannot read your terminal content.
               </p>
             </div>
             <div className="priv-grid">
               <div className="priv-cell">
                 <div className="mfeat-ico"><Icon d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6l-8-4ZM9.5 12l1.8 1.8L15 10" /></div>
-                <h4>Zero third-party servers</h4>
-                <p>Pairing, mirroring and control all happen peer-to-peer on your LAN or VPN. Nothing is uploaded, logged, or relayed through us.</p>
+                <h4>End-to-end encrypted</h4>
+                <p>ChaCha20-Poly1305 protects relayed commands, output, and session data with a key derived from your private pairing secret.</p>
               </div>
               <div className="priv-cell">
                 <div className="mfeat-ico"><Icon d="M5 12a7 7 0 0 1 14 0M2 12h2m16 0h2M12 2v2M12 19v3M7 12a5 5 0 0 1 10 0M12 12h.01" /></div>
                 <h4>Lift off from anywhere</h4>
-                <p>Want access beyond your home network? Spin up a secured mesh VPN like Tailscale in minutes — then reach your Mac from anywhere, privately.</p>
+                <p>Relay connects immediately from anywhere, then Air upgrades to a faster Direct path automatically whenever your Mac is reachable locally.</p>
               </div>
               <div className="priv-cell">
                 <div className="mfeat-ico"><Icon d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" /></div>

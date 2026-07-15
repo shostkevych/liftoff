@@ -189,14 +189,13 @@ struct AirConnectPopup: View {
     let dismiss: () -> Void
 
     private let payload: String
-    private let ips: [String]
+    @State private var relayLive = false
 
     init(dismiss: @escaping () -> Void) {
         self.dismiss = dismiss
         // Scan interfaces once per popup open (not on every body evaluation) and
         // share the result between the QR payload and the listed addresses.
         let ips = AirPairing.localIPv4Addresses()
-        self.ips = ips
         self.payload = AirPairing.payload(ips: ips)
     }
 
@@ -224,25 +223,49 @@ struct AirConnectPopup: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 280)
 
-            if !ips.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(ips, id: \.self) { ip in
-                        HStack(spacing: 6) {
-                            Image(systemName: "wifi")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
-                            Text(ip)
-                                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
-                        }
-                    }
-                }
-                .padding(.top, 2)
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(relayLive ? Color.green : Color.red)
+                    .frame(width: 7, height: 7)
+                Text("Relay")
+                    .font(.system(size: 11.5, weight: .semibold))
+                Spacer(minLength: 0)
+                Text(relayLive ? "Live" : "Offline")
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(relayLive ? Color.green : Color.secondary)
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 6) {
+                Label("End-to-end encrypted", systemImage: "lock.shield.fill")
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(Color.green)
+
+                Text("ChaCha20-Poly1305 · 256-bit pairing key derived with SHA-256")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                Text("The relay only connects your devices and forwards opaque ciphertext. Encryption keys never reach the relay, so it cannot read terminal output, commands, or session content.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+            .background(Color.green.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(Color.green.opacity(0.15), lineWidth: 1)
+            )
         }
         .padding(22)
         .modifier(PopupCard(width: 320, cornerRadius: 14))
+        .onAppear { relayLive = CompanionServer.shared.isRelayLive }
+        .onReceive(NotificationCenter.default.publisher(for: CompanionServer.relayStatusChanged)) { note in
+            relayLive = note.object as? Bool ?? false
+        }
     }
 }
 

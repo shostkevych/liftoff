@@ -9,6 +9,7 @@ struct AirPayload {
     let ips: [String]
     /// Persistent auth token (v2+). Nil for legacy v1 codes (requires re-pairing).
     let token: String?
+    let relay: String?
 
     init?(json: String) {
         guard let data = json.data(using: .utf8),
@@ -18,11 +19,12 @@ struct AirPayload {
         self.port = obj["port"] as? Int ?? 48624
         self.name = obj["name"] as? String ?? "Mac"
         self.token = obj["token"] as? String
+        self.relay = obj["relay"] as? String
     }
 }
 
-/// First-launch flow: welcome → scan intro → camera scan → pick a live IP.
-/// Calls `onConnect(host)` once the user selects an address to pair with.
+/// First-launch flow: welcome → scan intro → camera scan → connect.
+/// Addresses are stored silently and raced by the connection client.
 struct OnboardingView: View {
     let onConnect: (String) -> Void
     /// Enter the offline showcase mode (no Mac required).
@@ -32,7 +34,6 @@ struct OnboardingView: View {
         case welcome
         case scanIntro
         case scanning
-        case picking(name: String, ips: [String])
     }
 
     @State private var step: Step = .welcome
@@ -71,8 +72,6 @@ struct OnboardingView: View {
                 onCancel: { step = .scanIntro },
                 onScan: handleScan
             )
-        case let .picking(name, ips):
-            PairingPicker(macName: name, ips: ips, onPick: onConnect, onRescan: { step = .scanning })
         }
     }
 
@@ -157,10 +156,16 @@ struct OnboardingView: View {
 
     private func handleScan(_ value: String) {
         guard let payload = AirPayload(json: value) else { return }
+        // Never expose interface addresses in the UI. Keep all candidates so
+        // the client can silently find a reachable local path when needed.
+        UserDefaults.standard.set(payload.ips, forKey: "companionHosts")
         if let token = payload.token {
             UserDefaults.standard.set(token, forKey: "companionToken")
         }
-        step = .picking(name: payload.name, ips: payload.ips)
+        if let relay = payload.relay, !relay.isEmpty {
+            UserDefaults.standard.set(relay, forKey: "relayBaseURL")
+        }
+        onConnect(payload.ips[0])
     }
 
     // MARK: Shared pieces
@@ -219,116 +224,6 @@ private struct ScannerScreen: View {
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(.plain)
-            }
-        }
-    }
-}
-
-/// Lists every IP from the scanned code, pings each (live / offline dot),
-/// and stores the chosen one as the main server on tap.
-private struct PairingPicker: View {
-    let macName: String
-    let ips: [String]
-    let onPick: (String) -> Void
-    let onRescan: () -> Void
-
-    /// host -> reachability (nil = still probing).
-    @State private var liveness: [String: Bool] = [:]
-
-    var body: some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 8) {
-                Image(systemName: "desktopcomputer")
-                    .font(.system(size: 40))
-                    .foregroundStyle(Color.brand)
-                Text(macName)
-                    .font(.system(size: 22, weight: .bold))
-                Text("Pick the address to connect to. Live ones are reachable right now.")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 320)
-            }
-            .padding(.top, 20)
-
-            ScrollView {
-                VStack(spacing: 10) {
-                    ForEach(ips, id: \.self) { ip in
-                        ipRow(ip)
-                    }
-                }
-            }
-            .scrollIndicators(.hidden)
-
-            Button(action: onRescan) {
-                Label("Scan Again", systemImage: "qrcode.viewfinder")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-        }
-        .task { await probeAll() }
-    }
-
-    private func ipRow(_ ip: String) -> some View {
-        Button { onPick(ip) } label: {
-            HStack(spacing: 12) {
-                livenessDot(liveness[ip])
-                Text(ip)
-                    .font(.system(size: 16, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.primary)
-                Spacer()
-                Text(label(for: liveness[ip]))
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .background {
-                ZStack {
-                    Rectangle().fill(.ultraThinMaterial)
-                    Color.black.opacity(0.45)
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            }
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(.white.opacity(0.08), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
-    @ViewBuilder
-    private func livenessDot(_ live: Bool?) -> some View {
-        switch live {
-        case .some(true):
-            Circle().fill(Color(red: 0.42, green: 0.82, blue: 0.42)).frame(width: 9, height: 9)
-        case .some(false):
-            Circle().fill(Color(red: 0.55, green: 0.55, blue: 0.55)).frame(width: 9, height: 9)
-        case .none:
-            ProgressView().controlSize(.mini)
-        }
-    }
-
-    private func label(for live: Bool?) -> String {
-        switch live {
-        case .some(true): "Live"
-        case .some(false): "Offline"
-        case .none: "Checking…"
-        }
-    }
-
-    private func probeAll() async {
-        await withTaskGroup(of: (String, Bool).self) { group in
-            for ip in ips {
-                group.addTask { (ip, await AirPing.probe(host: ip)) }
-            }
-            for await (ip, live) in group {
-                liveness[ip] = live
             }
         }
     }

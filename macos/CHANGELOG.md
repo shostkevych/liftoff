@@ -4,6 +4,14 @@ Newest release on top. Each `## <version>` section is shown in-app: in the
 "What's New" popup after an update, and (via release.sh) in Sparkle's update
 prompt.
 
+## 1.11
+
+- Liftoff Air now connects remotely through a thin cloud relay, with the entire relayed session protected end-to-end using ChaCha20-Poly1305
+- Relay connects first for dependable remote access, then Liftoff Air silently upgrades to a faster Direct connection when the Mac is reachable locally
+- Pairing remains a single QR scan; saved network addresses are never shown and are probed privately in the background
+- Connection status clearly shows whether Liftoff Air is using Relay or Direct
+- Improved Instant Terminal focus when summoned over another active app
+
 ## 1.10
 
 - New: Instant Terminal — press Cmd+I anywhere, even when Liftoff isn't the active app, to summon a floating shell at your home folder, centered on the screen under your cursor
