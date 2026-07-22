@@ -650,7 +650,9 @@ final class CompanionServer {
         // reconnect. The debounced broadcast below refreshes their session lists.
         let oids = subscribers[id] ?? []
         for oid in oids {
-            clients[oid]?.attached = nil
+            guard let client = clients[oid] else { continue }
+            send(["t": "detached", "id": id.uuidString], to: client)
+            client.attached = nil
         }
         subscribers[id] = nil
         if let view = TerminalHostView.cache[id] {

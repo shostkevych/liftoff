@@ -14,6 +14,7 @@ import SwiftTerm
 struct TerminalScreen: View {
     let client: CompanionClient
     let session: CompanionClient.Session
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var bridge = TerminalBridge()
 
     var body: some View {
@@ -28,6 +29,11 @@ struct TerminalScreen: View {
             }
         }
         .background(Color.black)
+        .onChange(of: client.attachedID) { _, attachedID in
+            if attachedID != session.tid {
+                dismiss()
+            }
+        }
     }
 }
 
