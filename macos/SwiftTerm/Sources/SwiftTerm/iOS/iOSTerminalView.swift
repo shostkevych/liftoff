@@ -1371,12 +1371,16 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     func updateScroller ()
     {
         let displayBuffer = terminal.displayBuffer
+        let oldBottomOffset = max(0, contentSize.height - CGFloat(displayBuffer.rows) * cellDimension.height)
+        let shouldFollowOutput = !isTracking && !isDragging && !isDecelerating &&
+            contentOffset.y >= oldBottomOffset - 1
+
         contentSize = CGSize (width: CGFloat (displayBuffer.cols) * cellDimension.width,
                               height: CGFloat (displayBuffer.lines.count) * cellDimension.height)
-        //contentOffset = CGPoint (x: 0, y: CGFloat (displayBuffer.lines.count-displayBuffer.rows)*cellDimension.height)
-        contentOffset = CGPoint (x: 0, y: CGFloat (displayBuffer.lines.count-displayBuffer.rows)*cellDimension.height)
-        //Xscroller.doubleValue = scrollPosition
-        //Xscroller.knobProportion = scrollThumbsize
+
+        if shouldFollowOutput {
+            contentOffset.y = CGFloat(max(0, displayBuffer.lines.count - displayBuffer.rows)) * cellDimension.height
+        }
     }
 
 #if canImport(MetalKit)
