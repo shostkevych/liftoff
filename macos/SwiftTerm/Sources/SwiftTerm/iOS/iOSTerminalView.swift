@@ -1383,6 +1383,12 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         }
     }
 
+    public func scrollToBottom ()
+    {
+        let displayBuffer = terminal.displayBuffer
+        contentOffset.y = CGFloat(max(0, displayBuffer.lines.count - displayBuffer.rows)) * cellDimension.height
+    }
+
 #if canImport(MetalKit)
     func metalVisibleRange() -> ClosedRange<Int>? {
         let buffer = terminal.displayBuffer

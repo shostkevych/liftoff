@@ -37,6 +37,7 @@ final class TerminalBridge: ObservableObject {
     func down()  { view?.sendKeyDown() }
     func left()  { view?.sendKeyLeft() }
     func right() { view?.sendKeyRight() }
+    func live()  { view?.scrollToBottom() }
 
     func showKeyboard() {
         guard let view else { return }
@@ -176,6 +177,22 @@ private struct KeyBar: View {
                 }
                 .padding(.horizontal, 8)
             }
+
+            Button { bridge.live() } label: {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 6, height: 6)
+                    Text("Live")
+                        .font(.system(size: keyFont, weight: .semibold))
+                }
+                .foregroundColor(.white.opacity(0.9))
+                .frame(width: expanded ? 58 : 52, height: rowHeight)
+                .background(Color.white.opacity(0.10))
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, 4)
 
             // Pinned keyboard toggle.
             Button { bridge.toggleKeyboard() } label: {
