@@ -635,6 +635,11 @@ final class CompanionClient {
             if let cols = msg["cols"] as? Int, let rows = msg["rows"] as? Int {
                 onSize?(cols, rows)
             }
+        case "detached":
+            if let id = msg["id"] as? String, id != attachedID { break }
+            attachedID = nil
+            lastTerminalSize = nil
+            onBytes = nil
         case "snapshot", "output":
             // Fail closed: only render successfully decrypted bytes. Never feed
             // raw ciphertext to the terminal — that's what showed up as garbled,
