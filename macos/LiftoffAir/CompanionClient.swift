@@ -339,6 +339,11 @@ final class CompanionClient {
         send(["t": "input", "d": enc.base64EncodedString()])
     }
 
+    func sendScroll(lines: Int) {
+        guard !demo, lines != 0 else { return }
+        send(["t": "scroll", "lines": max(-3, min(3, lines))])
+    }
+
     func sendResize(cols: Int, rows: Int) {
         if demo { return }
         send(["t": "resize", "cols": cols, "rows": rows])
