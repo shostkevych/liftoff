@@ -428,6 +428,11 @@ final class CompanionServer {
                let rows = msg["rows"] as? Int {
                 TerminalHostView.cache[id]?.applyRemoteSize(cols: cols, rows: rows)
             }
+        case "scroll":
+            if let id = client.attached,
+               let lines = msg["lines"] as? Int {
+                TerminalHostView.cache[id]?.sendRemoteScroll(lines: max(-3, min(3, lines)))
+            }
         case "detach":
             if let id = client.attached {
                 release(id, client.id)

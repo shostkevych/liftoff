@@ -117,6 +117,9 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
      */
     public weak var terminalDelegate: TerminalViewDelegate?
 
+    /// Handles scroll intent externally when the remote terminal owns the TUI state.
+    public var remoteScrollHandler: ((Int) -> Void)?
+
     /// When set, the terminal uses this fixed grid size instead of deriving it
     /// from the view's bounds. Set to nil to resume bounds-based sizing.
     public var forcedGridSize: (cols: Int, rows: Int)? {
@@ -991,7 +994,8 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     private var remoteScrollRemainderY: CGFloat = 0
 
     @objc func panRemoteScrollHandler (_ gesture: UIPanGestureRecognizer) {
-        guard terminal.isCurrentBufferAlternate, terminal.mouseMode.sendButtonPress() else {
+        let canScrollRemote = remoteScrollHandler != nil
+        guard canScrollRemote || (terminal.isCurrentBufferAlternate && terminal.mouseMode.sendButtonPress()) else {
             remoteScrollLastY = 0
             remoteScrollRemainderY = 0
             return
@@ -1011,6 +1015,12 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
             guard requestedSteps != 0 else { return }
 
             let steps = max(-3, min(3, requestedSteps))
+            if let remoteScrollHandler {
+                remoteScrollHandler(steps)
+                remoteScrollRemainderY -= CGFloat(steps) * stepHeight
+                return
+            }
+
             let button = steps > 0 ? 4 : 5
             let flags = terminal.encodeButton(button: button, release: false,
                                               shift: false, meta: false, control: false)

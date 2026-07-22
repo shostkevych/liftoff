@@ -2198,6 +2198,22 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     /// scrolling so they convert smoothly into whole-line buffer scrolls.
     private var preciseScrollAccumulator: CGFloat = 0
 
+    /// Forwards bounded remote scroll intent using the mouse protocol negotiated by the TUI.
+    public func sendRemoteScroll(lines: Int) {
+        guard terminal.isCurrentBufferAlternate, allowMouseReporting,
+              terminal.mouseMode.sendButtonPress(), lines != 0 else { return }
+        let boundedLines = max(-terminal.rows, min(terminal.rows, lines))
+        let button = boundedLines > 0 ? 4 : 5
+        let buttonFlags = terminal.encodeButton(button: button, release: false,
+                                                shift: false, meta: false, control: false)
+        let col = max(0, terminal.cols / 2)
+        let row = max(0, terminal.rows / 2)
+        for _ in 0..<abs(boundedLines) {
+            terminal.sendEvent(buttonFlags: buttonFlags, x: col, y: row,
+                               pixelX: Int(bounds.midX), pixelY: Int(bounds.midY))
+        }
+    }
+
     public override func scrollWheel(with event: NSEvent) {
         // When the running program has enabled mouse reporting (e.g. a TUI like
         // Claude Code on the alternate screen), forward the wheel as wheel-button

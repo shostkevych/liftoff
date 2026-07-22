@@ -79,6 +79,9 @@ private struct TerminalSurface: UIViewRepresentable {
         view.inputAccessoryView = nil
 
         bridge.view = view
+        view.remoteScrollHandler = { [weak client] lines in
+            client?.sendScroll(lines: lines)
+        }
         client.onBytes = { [weak view] data in
             view?.feed(byteArray: [UInt8](data)[...])
         }
