@@ -987,6 +987,48 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     }
     
     var panMouseGesture: UIPanGestureRecognizer?
+    private var remoteScrollLastY: CGFloat = 0
+    private var remoteScrollRemainderY: CGFloat = 0
+
+    @objc func panRemoteScrollHandler (_ gesture: UIPanGestureRecognizer) {
+        guard terminal.isCurrentBufferAlternate, terminal.mouseMode.sendButtonPress() else {
+            remoteScrollLastY = 0
+            remoteScrollRemainderY = 0
+            return
+        }
+
+        switch gesture.state {
+        case .began:
+            remoteScrollLastY = gesture.translation(in: self).y
+            remoteScrollRemainderY = 0
+        case .changed:
+            let currentY = gesture.translation(in: self).y
+            remoteScrollRemainderY += currentY - remoteScrollLastY
+            remoteScrollLastY = currentY
+
+            let stepHeight = max(cellDimension.height, 1)
+            let requestedSteps = Int(remoteScrollRemainderY / stepHeight)
+            guard requestedSteps != 0 else { return }
+
+            let steps = max(-3, min(3, requestedSteps))
+            let button = steps > 0 ? 4 : 5
+            let flags = terminal.encodeButton(button: button, release: false,
+                                              shift: false, meta: false, control: false)
+            let col = max(0, terminal.cols / 2)
+            let row = max(0, terminal.rows / 2)
+            for _ in 0..<abs(steps) {
+                terminal.sendEvent(buttonFlags: flags, x: col, y: row,
+                                   pixelX: Int(bounds.midX), pixelY: Int(bounds.midY))
+            }
+            remoteScrollRemainderY -= CGFloat(steps) * stepHeight
+        case .ended, .cancelled, .failed:
+            remoteScrollLastY = 0
+            remoteScrollRemainderY = 0
+        default:
+            break
+        }
+    }
+
     func enableMousePanGesture () {
         guard panMouseGesture == nil else {
             return
@@ -1024,6 +1066,8 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     
     func setupGestures ()
     {
+        panGestureRecognizer.addTarget(self, action: #selector(panRemoteScrollHandler(_:)))
+
         let longPress = UILongPressGestureRecognizer (target: self, action: #selector(longPress(_:)))
         longPress.minimumPressDuration = 0.7
         addGestureRecognizer(longPress)
