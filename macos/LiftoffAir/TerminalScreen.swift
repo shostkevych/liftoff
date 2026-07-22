@@ -19,7 +19,11 @@ struct TerminalScreen: View {
     var body: some View {
         GeometryReader { geo in
             VStack(spacing: 0) {
-                TerminalSurface(client: client, session: session, bridge: bridge)
+                ZStack(alignment: .trailing) {
+                    TerminalSurface(client: client, session: session, bridge: bridge)
+                    VerticalScrollControl(bridge: bridge)
+                        .padding(.trailing, 6)
+                }
                 KeyBar(bridge: bridge, bottomInset: geo.safeAreaInsets.bottom)
             }
         }
@@ -38,6 +42,7 @@ final class TerminalBridge: ObservableObject {
     func left()  { view?.sendKeyLeft() }
     func right() { view?.sendKeyRight() }
     func live()  { view?.scrollToBottom() }
+    func scroll(lines: Int) { view?.scrollBy(lines: lines) }
 
     func showKeyboard() {
         guard let view else { return }
@@ -133,6 +138,53 @@ private struct TerminalSurface: UIViewRepresentable {
         func clipboardCopy(source: SwiftTerm.TerminalView, content: Data) {}
         func iTermContent(source: SwiftTerm.TerminalView, content: ArraySlice<UInt8>) {}
         func rangeChanged(source: SwiftTerm.TerminalView, startY: Int, endY: Int) {}
+    }
+}
+
+private struct VerticalScrollControl: View {
+    @ObservedObject var bridge: TerminalBridge
+    @State private var sentSteps = 0
+
+    var body: some View {
+        VStack(spacing: 4) {
+            stepButton("chevron.up", lines: 3, label: "Scroll up")
+
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.white.opacity(0.8))
+                .frame(width: 30, height: 58)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 9))
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 2)
+                        .onChanged { value in
+                            let steps = Int(-value.translation.height / 10)
+                            let delta = steps - sentSteps
+                            if delta != 0 {
+                                bridge.scroll(lines: delta)
+                                sentSteps = steps
+                            }
+                        }
+                        .onEnded { _ in sentSteps = 0 }
+                )
+                .accessibilityLabel("Terminal scroll handle")
+
+            stepButton("chevron.down", lines: -3, label: "Scroll down")
+        }
+    }
+
+    private func stepButton(_ icon: String, lines: Int, label: String) -> some View {
+        Button { bridge.scroll(lines: lines) } label: {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.white.opacity(0.85))
+                .frame(width: 30, height: 28)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 }
 

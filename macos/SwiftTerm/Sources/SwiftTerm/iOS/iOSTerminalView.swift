@@ -1452,6 +1452,15 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         contentOffset.y = CGFloat(max(0, displayBuffer.lines.count - displayBuffer.rows)) * cellDimension.height
     }
 
+    public func scrollBy (lines: Int)
+    {
+        guard lines != 0 else { return }
+        let displayBuffer = terminal.displayBuffer
+        let bottomOffset = CGFloat(max(0, displayBuffer.lines.count - displayBuffer.rows)) * cellDimension.height
+        contentOffset.y = min(bottomOffset, max(0, contentOffset.y - CGFloat(lines) * cellDimension.height))
+        remoteScrollHandler?(lines)
+    }
+
 #if canImport(MetalKit)
     func metalVisibleRange() -> ClosedRange<Int>? {
         let buffer = terminal.displayBuffer
