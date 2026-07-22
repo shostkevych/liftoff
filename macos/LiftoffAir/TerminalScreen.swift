@@ -71,6 +71,8 @@ private struct TerminalSurface: UIViewRepresentable {
         view.nativeBackgroundColor = .black
         view.nativeForegroundColor = .init(white: 0.92, alpha: 1)
         view.font = UIFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        // A wide desktop snapshot expands into many more rows after phone-width reflow.
+        view.changeScrollback(10_000)
         // Reserve one-finger pans for native terminal scrollback, including in TUIs.
         view.allowMouseReporting = false
         // Drop SwiftTerm's own accessory + alternate keyboard; our KeyBar replaces them.
