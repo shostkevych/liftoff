@@ -55,8 +55,9 @@ final class TerminalBridge: ObservableObject {
         fullRefreshUntil = Date().addingTimeInterval(1)
     }
 
-    func feed(_ data: Data) {
+    func feed(_ data: Data, usesRemoteScrolling: Bool) {
         guard let view else { return }
+        view.usesRemoteScrolling = usesRemoteScrolling
         view.feed(byteArray: [UInt8](data)[...])
         if Date() < fullRefreshUntil {
             view.refreshEntireScreen()
@@ -108,8 +109,8 @@ private struct TerminalSurface: UIViewRepresentable {
             bridge.beginRemoteScroll()
             client?.sendScroll(lines: lines)
         }
-        client.onBytes = { [weak bridge] data in
-            bridge?.feed(data)
+        client.onBytes = { [weak bridge, weak client] data in
+            bridge?.feed(data, usesRemoteScrolling: client?.remoteScrollMode ?? false)
         }
         client.attach(session)
 

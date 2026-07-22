@@ -626,6 +626,7 @@ final class CompanionServer {
         }
         let term = view.getTerminal()
         send(["t": "size", "cols": term.cols, "rows": term.rows], to: client)
+        send(["t": "mode", "remoteScroll": term.isCurrentBufferAlternate], to: client)
         let snap = view.snapshotData()
         sendSnapshot(snap, to: client)
     }
@@ -699,6 +700,7 @@ final class CompanionServer {
 
     private func fanout(_ terminalID: UUID, _ bytes: Data) {
         guard let oids = subscribers[terminalID], !oids.isEmpty else { return }
+        let remoteScroll = TerminalHostView.cache[terminalID]?.getTerminal().isCurrentBufferAlternate ?? false
         for oid in oids {
             guard let client = clients[oid] else { continue }
             let payload: String
@@ -709,7 +711,7 @@ final class CompanionServer {
                 guard let enc = try? LiftoffCrypto.encrypt(bytes, using: cryptoKey) else { continue }
                 payload = enc.base64EncodedString()
             }
-            send(["t": "output", "d": payload], to: client)
+            send(["t": "output", "d": payload, "remoteScroll": remoteScroll], to: client)
         }
     }
 

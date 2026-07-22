@@ -120,6 +120,13 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     /// Handles scroll intent externally when the remote terminal owns the TUI state.
     public var remoteScrollHandler: ((Int) -> Void)?
 
+    /// Keeps the local viewport fixed while a remote TUI owns scrolling.
+    public var usesRemoteScrolling = false {
+        didSet {
+            if usesRemoteScrolling { scrollToBottom() }
+        }
+    }
+
     /// Whether tapping the terminal should summon the software keyboard.
     public var activateKeyboardOnTap = true
 
@@ -999,7 +1006,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     private var remoteScrollRemainderY: CGFloat = 0
 
     @objc func panRemoteScrollHandler (_ gesture: UIPanGestureRecognizer) {
-        let canScrollRemote = remoteScrollHandler != nil
+        let canScrollRemote = usesRemoteScrolling && remoteScrollHandler != nil
         guard canScrollRemote || (terminal.isCurrentBufferAlternate && terminal.mouseMode.sendButtonPress()) else {
             remoteScrollLastY = 0
             remoteScrollRemainderY = 0
@@ -1460,10 +1467,13 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     public func scrollBy (lines: Int)
     {
         guard lines != 0 else { return }
+        if usesRemoteScrolling {
+            remoteScrollHandler?(lines)
+            return
+        }
         let displayBuffer = terminal.displayBuffer
         let bottomOffset = CGFloat(max(0, displayBuffer.lines.count - displayBuffer.rows)) * cellDimension.height
         contentOffset.y = min(bottomOffset, max(0, contentOffset.y - CGFloat(lines) * cellDimension.height))
-        remoteScrollHandler?(lines)
     }
 
     public func refreshEntireScreen ()
@@ -1572,6 +1582,14 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
 
     open override var contentOffset: CGPoint {
         didSet {
+            if usesRemoteScrolling {
+                let displayBuffer = terminal.displayBuffer
+                let bottomOffset = CGFloat(max(0, displayBuffer.lines.count - displayBuffer.rows)) * cellDimension.height
+                if abs(contentOffset.y - bottomOffset) > 1 {
+                    contentOffset.y = bottomOffset
+                    return
+                }
+            }
 #if canImport(MetalKit)
             if useMetalRenderer, metalView != nil {
                 requestMetalDisplay()
