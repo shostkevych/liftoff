@@ -120,6 +120,9 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     /// Handles scroll intent externally when the remote terminal owns the TUI state.
     public var remoteScrollHandler: ((Int) -> Void)?
 
+    /// Whether tapping the terminal should summon the software keyboard.
+    public var activateKeyboardOnTap = true
+
     /// When set, the terminal uses this fixed grid size instead of deriving it
     /// from the view's bounds. Set to nil to resume bounds-based sizing.
     public var forcedGridSize: (cols: Int, rows: Int)? {
@@ -748,7 +751,9 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
             }
             queuePendingDisplay()
         } else {
-            let _ = becomeFirstResponder ()
+            if activateKeyboardOnTap {
+                let _ = becomeFirstResponder ()
+            }
         }
     }
     

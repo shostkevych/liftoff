@@ -34,7 +34,7 @@ struct TerminalScreen: View {
 /// Channel between the SwiftUI key bar and the live `TerminalView`.
 final class TerminalBridge: ObservableObject {
     weak var view: SwiftTerm.TerminalView?
-    @Published var keyboardUp: Bool = true
+    @Published var keyboardUp: Bool = false
 
     func send(_ bytes: [UInt8]) { view?.send(bytes) }
     func up()    { view?.sendKeyUp() }
@@ -80,6 +80,7 @@ private struct TerminalSurface: UIViewRepresentable {
         view.changeScrollback(10_000)
         // Reserve one-finger pans for native terminal scrollback, including in TUIs.
         view.allowMouseReporting = false
+        view.activateKeyboardOnTap = false
         // Drop SwiftTerm's own accessory + alternate keyboard; our KeyBar replaces them.
         view.inputAccessoryView = nil
 
@@ -92,10 +93,6 @@ private struct TerminalSurface: UIViewRepresentable {
         }
         client.attach(session)
 
-        DispatchQueue.main.async {
-            _ = view.becomeFirstResponder()
-            bridge.keyboardUp = true
-        }
         return view
     }
 
