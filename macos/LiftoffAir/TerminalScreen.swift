@@ -35,6 +35,7 @@ struct TerminalScreen: View {
 final class TerminalBridge: ObservableObject {
     weak var view: SwiftTerm.TerminalView?
     @Published var keyboardUp: Bool = false
+    private var fullRefreshUntil = Date.distantPast
 
     func send(_ bytes: [UInt8]) { view?.send(bytes) }
     func up()    { view?.sendKeyUp() }
@@ -43,6 +44,18 @@ final class TerminalBridge: ObservableObject {
     func right() { view?.sendKeyRight() }
     func live()  { view?.scrollToBottom() }
     func scroll(lines: Int) { view?.scrollBy(lines: lines) }
+
+    func beginRemoteScroll() {
+        fullRefreshUntil = Date().addingTimeInterval(1)
+    }
+
+    func feed(_ data: Data) {
+        guard let view else { return }
+        view.feed(byteArray: [UInt8](data)[...])
+        if Date() < fullRefreshUntil {
+            view.refreshEntireScreen()
+        }
+    }
 
     func showKeyboard() {
         guard let view else { return }
@@ -86,10 +99,11 @@ private struct TerminalSurface: UIViewRepresentable {
 
         bridge.view = view
         view.remoteScrollHandler = { [weak client] lines in
+            bridge.beginRemoteScroll()
             client?.sendScroll(lines: lines)
         }
-        client.onBytes = { [weak view] data in
-            view?.feed(byteArray: [UInt8](data)[...])
+        client.onBytes = { [weak bridge] data in
+            bridge?.feed(data)
         }
         client.attach(session)
 

@@ -1466,6 +1466,12 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         remoteScrollHandler?(lines)
     }
 
+    public func refreshEntireScreen ()
+    {
+        terminal.updateFullScreen()
+        queuePendingDisplay()
+    }
+
 #if canImport(MetalKit)
     func metalVisibleRange() -> ClosedRange<Int>? {
         let buffer = terminal.displayBuffer
