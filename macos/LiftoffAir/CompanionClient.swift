@@ -64,6 +64,7 @@ final class CompanionClient {
     var attachedID: String?
     var greeting: String?
     var openedTid: String?
+    private(set) var remoteScrollMode = false
     /// True once authok has been received from the Mac.
     private(set) var authed = false
 
@@ -319,6 +320,7 @@ final class CompanionClient {
     }
 
     func attach(_ session: Session) {
+        remoteScrollMode = false
         attachedID = session.tid
         if demo { feedDemoSnapshot(for: session); return }
         send(["t": "attach", "id": session.tid])
@@ -327,6 +329,7 @@ final class CompanionClient {
     func detach() {
         if !demo { send(["t": "detach"]) }
         attachedID = nil
+        remoteScrollMode = false
         onBytes = nil
     }
 
@@ -639,12 +642,18 @@ final class CompanionClient {
             if let id = msg["id"] as? String, id != attachedID { break }
             attachedID = nil
             lastTerminalSize = nil
+            remoteScrollMode = false
             onBytes = nil
+        case "mode":
+            remoteScrollMode = msg["remoteScroll"] as? Bool ?? false
         case "snapshot", "output":
             // Fail closed: only render successfully decrypted bytes. Never feed
             // raw ciphertext to the terminal — that's what showed up as garbled,
             // "encrypted-looking" symbols when a frame failed to decrypt.
             if let b64 = msg["d"] as? String, let enc = Data(base64Encoded: b64) {
+                if let remoteScroll = msg["remoteScroll"] as? Bool {
+                    remoteScrollMode = remoteScroll
+                }
                 if let raw = try? LiftoffCrypto.decrypt(enc, using: cryptoKey) {
                     onBytes?(raw)
                 } else {
