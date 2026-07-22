@@ -146,7 +146,16 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
      * If a client application has not indicated any use for mouse events, then this setting
      * does not do anything, and selection and panning are still processed.
      */
-    public var allowMouseReporting: Bool = true
+    public var allowMouseReporting: Bool = true {
+        didSet {
+            guard didFinishSetup else { return }
+            if allowMouseReporting && terminal.mouseMode != .off {
+                enableMousePanGesture()
+            } else {
+                disableMousePanGesture()
+            }
+        }
+    }
 
     /// Controls how link tracking resolves hovered links:
     /// `.explicit` = OSC 8 only, `.implicit` = explicit + implicit fallback, `.none` = off.
@@ -2626,7 +2635,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     }
     
     open func mouseModeChanged(source: Terminal) {
-        if source.mouseMode != .off {
+        if allowMouseReporting && source.mouseMode != .off {
             enableMousePanGesture()
         } else {
             disableMousePanGesture()
