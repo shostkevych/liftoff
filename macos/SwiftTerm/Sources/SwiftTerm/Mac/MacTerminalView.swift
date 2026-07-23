@@ -2200,8 +2200,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
 
     /// Forwards bounded remote scroll intent using the mouse protocol negotiated by the TUI.
     public func sendRemoteScroll(lines: Int) {
-        guard terminal.isCurrentBufferAlternate, allowMouseReporting,
-              terminal.mouseMode.sendButtonPress(), lines != 0 else { return }
+        guard allowMouseReporting, terminal.isMouseReportingEnabled, lines != 0 else { return }
         let boundedLines = max(-terminal.rows, min(terminal.rows, lines))
         let button = boundedLines > 0 ? 4 : 5
         let buttonFlags = terminal.encodeButton(button: button, release: false,
