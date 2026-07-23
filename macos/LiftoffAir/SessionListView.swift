@@ -495,13 +495,15 @@ private struct SwipeableTabRow<Content: View>: View {
                     if offset != 0 { withAnimation(.spring(response: 0.3)) { offset = 0 } }
                     else { onTap() }
                 }
-                .gesture(
+                .simultaneousGesture(
                     DragGesture(minimumDistance: 12)
                         .onChanged { v in
+                            guard abs(v.translation.width) > abs(v.translation.height) else { return }
                             if v.translation.width < 0 { offset = max(v.translation.width, revealed) }
                             else if offset != 0 { offset = min(0, revealed + v.translation.width) }
                         }
                         .onEnded { v in
+                            guard abs(v.translation.width) > abs(v.translation.height) else { return }
                             withAnimation(.spring(response: 0.3)) {
                                 offset = v.translation.width < -40 ? revealed : 0
                             }
