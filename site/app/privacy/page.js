@@ -1,12 +1,12 @@
 import LegalShell from "../components/LegalShell";
 
-const GITHUB = "https://github.com/yourname/liftoff";
+const GITHUB = "https://github.com/shostkevych/liftoff";
 const CONTACT = "personal@shostkevych.com";
 
 export const metadata = {
   title: "Privacy Policy — Liftoff",
   description:
-    "Liftoff collects no personal data, no telemetry, and runs no servers. Your terminals stay on your own devices and network.",
+    "Liftoff collects limited anonymous usage counts but never terminal content, commands, project paths, or personal data.",
 };
 
 export default function Privacy() {
@@ -14,21 +14,21 @@ export default function Privacy() {
     <LegalShell
       tag="Privacy Policy"
       title="Your terminals stay yours."
-      updated="June 16, 2026"
-      intro="Liftoff is a free, open-source macOS terminal. It is built so that your data never leaves your control. We do not run servers, collect telemetry, or ask you to create an account. This policy explains, in plain terms, exactly what that means."
+      updated="July 27, 2026"
+      intro="Liftoff is a free, open-source macOS terminal. Terminal content and project data stay under your control. We collect only a few anonymous product counters so we can understand adoption and supported versions."
     >
       <h2><span className="num">1</span>The short version</h2>
       <ul>
         <li><strong>No account.</strong> Liftoff never asks you to sign up or log in.</li>
-        <li><strong>No telemetry or analytics.</strong> The app does not phone home, track usage, or send crash reports automatically.</li>
-        <li><strong>No servers.</strong> We operate no backend that your terminals, projects, or keystrokes pass through.</li>
+        <li><strong>Anonymous product metrics only.</strong> The app reports its version, an anonymous installation identifier, a last-seen heartbeat, and how many terminals were opened.</li>
+        <li><strong>No sensitive data.</strong> We never collect terminal output, commands, prompts, project paths, filenames, user or device names, hardware details, or crash reports.</li>
         <li><strong>Everything is local.</strong> Your projects, terminal output, settings, and pairings live on your own devices.</li>
       </ul>
 
       <h2><span className="num">2</span>What Liftoff stores on your device</h2>
       <p>
         To work as a terminal and project workspace, Liftoff keeps the following
-        on your Mac (and, for the companion, your phone). None of it is transmitted to us:
+        on your Mac (and, for the companion, your phone):
       </p>
       <ul>
         <li>Your application settings and preferences (themes, layouts, per-project accent colors).</li>
@@ -41,7 +41,21 @@ export default function Privacy() {
         settings, or uninstalling the app.
       </p>
 
-      <h2><span className="num">3</span>Liftoff Air &amp; the web client</h2>
+      <h2><span className="num">3</span>Anonymous product metrics</h2>
+      <p>
+        Liftoff sends a small heartbeat when it starts and periodically while it is
+        running. It contains a randomly generated installation identifier, the installed
+        Liftoff version, and a batched count of terminals opened since the previous
+        successful heartbeat.
+      </p>
+      <ul>
+        <li>The random identifier is not derived from your Apple ID, name, email, hardware, network address, or any device identifier.</li>
+        <li>The server stores only a one-way hash of that random identifier.</li>
+        <li>Network addresses are not stored in the analytics database or shown in the dashboard.</li>
+        <li>The counters are used only to measure active installations, version adoption, and aggregate terminal usage.</li>
+      </ul>
+
+      <h2><span className="num">4</span>Liftoff Air &amp; the web client</h2>
       <p>
         Liftoff Air mirrors a terminal to the iOS companion app or to a browser. This
         connection uses a direct path on your local network when available and an
@@ -54,7 +68,7 @@ export default function Privacy() {
         <li>The relay necessarily processes limited routing metadata such as session identifiers, connection timing, traffic sizes, and network addresses.</li>
       </ul>
 
-      <h2><span className="num">4</span>Third-party AI agents</h2>
+      <h2><span className="num">5</span>Third-party AI agents</h2>
       <p>
         Liftoff is a terminal — it runs whatever commands and tools you launch inside it,
         including AI coding agents such as Claude Code, Codex, Gemini, opencode, Aider, and
@@ -67,7 +81,7 @@ export default function Privacy() {
         agent or service you run inside Liftoff.
       </p>
 
-      <h2><span className="num">5</span>This website</h2>
+      <h2><span className="num">6</span>This website</h2>
       <p>
         The Liftoff marketing website sets no tracking cookies and runs no advertising or
         analytics scripts. Like virtually all web hosting, the provider serving this site
@@ -75,13 +89,13 @@ export default function Privacy() {
         URLs) for security and reliability. These logs are not used to identify or profile you.
       </p>
 
-      <h2><span className="num">6</span>Children</h2>
+      <h2><span className="num">7</span>Children</h2>
       <p>
         Liftoff is a developer tool and is not directed at children. We do not knowingly
         collect personal information from anyone, including children.
       </p>
 
-      <h2><span className="num">7</span>Changes to this policy</h2>
+      <h2><span className="num">8</span>Changes to this policy</h2>
       <p>
         If this policy changes, the updated version will be published here with a new
         "last updated" date. Because Liftoff is open source, you can also review the
@@ -89,7 +103,7 @@ export default function Privacy() {
         <a className="inline" href={GITHUB} target="_blank" rel="noreferrer">project repository</a>.
       </p>
 
-      <h2><span className="num">8</span>Contact</h2>
+      <h2><span className="num">9</span>Contact</h2>
       <p>
         Questions about privacy? Reach out at{" "}
         <a className="inline mono" href={`mailto:${CONTACT}`}>{CONTACT}</a>{" "}

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		03376AF7BC3F6DE17E1C5A63 /* MarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28789D6C52966AE93B599E24 /* MarkdownText.swift */; };
+		042014944D08F84DBB386FA9 /* AnalyticsReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F908CAFEC82D93540969D5BE /* AnalyticsReporter.swift */; };
 		13F0A8BF75F108D7BEF6BE92 /* Crypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56816FDB7CE9C65A6A69ED0F /* Crypto.swift */; };
 		1A2B3C4D5E6F708192A3B4C5 /* InstantTerminal.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5B4A392817060F5E4D3C2B1 /* InstantTerminal.swift */; };
 		1E4C01CC6FF6B3EF8DE0607C /* icon.png in Resources */ = {isa = PBXBuildFile; fileRef = 1307C7DE438CB002F94D2141 /* icon.png */; };
@@ -100,6 +101,7 @@
 		E9D9DFEFE46D1408689FE39A /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
 		F1959883A235690B507FAC5F /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		F4B72799C96C9ABE26375302 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		F908CAFEC82D93540969D5BE /* AnalyticsReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsReporter.swift; sourceTree = "<group>"; };
 		FB4C5FE348447AC2BBD99EF8 /* RecentsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentsSheet.swift; sourceTree = "<group>"; };
 		FFC2EC6B6CE211529E1CA9A6 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -129,6 +131,7 @@
 			isa = PBXGroup;
 			children = (
 				264F1EE6289BAF9F20D71B00 /* AirConnect.swift */,
+				F908CAFEC82D93540969D5BE /* AnalyticsReporter.swift */,
 				16A7C25E405CF78F4069F75D /* CompanionServer.swift */,
 				154452DC795DC62917B90210 /* ContentView.swift */,
 				1D731805259E03EF7AF317A4 /* Crypto.swift */,
@@ -346,6 +349,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				EF7D22CEBC0BC0A0B6F57F55 /* AirConnect.swift in Sources */,
+				042014944D08F84DBB386FA9 /* AnalyticsReporter.swift in Sources */,
 				55A9980CBF41BA17A3208099 /* CompanionServer.swift in Sources */,
 				F6E5A3C677862433383B35A0 /* ContentView.swift in Sources */,
 				BD1D28D10340F57A200F1F69 /* Crypto.swift in Sources */,

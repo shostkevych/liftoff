@@ -162,7 +162,7 @@ export default function Home() {
               </span>
             </div>
             <p className="hero-note rise" style={{ animationDelay: "360ms" }}>
-              No account. No telemetry. MIT licensed.
+              No account. No terminal data collected. MIT licensed.
             </p>
           </div>
 
