@@ -113,6 +113,11 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     private var findBarOptions: SearchOptions = SearchOptions()
     var debug: TerminalDebugView?
     var pendingDisplay: Bool = false
+    /// Coalesces rapid DEC 2026 synchronized-output blocks into one frame.
+    var syncEndRenderTimer: DispatchWorkItem?
+    var inSyncSequence = false
+    /// One frame is sufficient for direct rich TUIs without visible input lag.
+    public var syncSequenceSettleMs = 16
 #if canImport(MetalKit)
     var metalView: MTKView?
     var metalRenderer: MetalTerminalRenderer?
@@ -2198,6 +2203,21 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     /// scrolling so they convert smoothly into whole-line buffer scrolls.
     private var preciseScrollAccumulator: CGFloat = 0
 
+    /// Forwards bounded remote scroll intent using the mouse protocol negotiated by the TUI.
+    public func sendRemoteScroll(lines: Int) {
+        guard allowMouseReporting, terminal.isMouseReportingEnabled, lines != 0 else { return }
+        let boundedLines = max(-terminal.rows, min(terminal.rows, lines))
+        let button = boundedLines > 0 ? 4 : 5
+        let buttonFlags = terminal.encodeButton(button: button, release: false,
+                                                shift: false, meta: false, control: false)
+        let col = max(0, terminal.cols / 2)
+        let row = max(0, terminal.rows / 2)
+        for _ in 0..<abs(boundedLines) {
+            terminal.sendEvent(buttonFlags: buttonFlags, x: col, y: row,
+                               pixelX: Int(bounds.midX), pixelY: Int(bounds.midY))
+        }
+    }
+
     public override func scrollWheel(with event: NSEvent) {
         // When the running program has enabled mouse reporting (e.g. a TUI like
         // Claude Code on the alternate screen), forward the wheel as wheel-button
@@ -2396,6 +2416,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     
     func ensureCaretIsVisible ()
     {
+        guard !terminal.inSynchronizedOutput && !inSyncSequence else { return }
         let displayBuffer = terminal.displayBuffer
         let realCaret = displayBuffer.y + displayBuffer.yBase
         let viewportEnd = displayBuffer.yDisp + displayBuffer.rows

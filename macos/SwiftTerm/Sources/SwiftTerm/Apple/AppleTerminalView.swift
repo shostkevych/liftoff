@@ -333,8 +333,25 @@ extension TerminalView {
 
     public func synchronizedOutputChanged (source: Terminal, active: Bool)
     {
-        updateScroller()
-        queuePendingDisplay()
+        if active {
+            syncEndRenderTimer?.cancel()
+            syncEndRenderTimer = nil
+            inSyncSequence = true
+        } else {
+            syncEndRenderTimer?.cancel()
+            let work = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.syncEndRenderTimer = nil
+                self.inSyncSequence = false
+                self.updateScroller()
+                self.queuePendingDisplay()
+                self.terminalDelegate?.scrolled(source: self, position: self.scrollPosition)
+            }
+            syncEndRenderTimer = work
+            DispatchQueue.main.asyncAfter(
+                deadline: .now() + .milliseconds(syncSequenceSettleMs),
+                execute: work)
+        }
     }
 
     public func setBackgroundColor(source: Terminal, color: Color) {
@@ -1576,13 +1593,7 @@ extension TerminalView {
     func updateDisplay (notifyAccessibility: Bool)
     {
         defer { pendingDisplay = false }
-        // While a synchronized-output batch (DECSET 2026) is open, defer painting
-        // so a half-drawn frame is never shown. We return before clearing the
-        // update range so the accumulated dirty rows are flushed in one repaint
-        // when the batch closes (endSynchronizedOutput refreshes the full screen).
-        if terminal.inSynchronizedOutput {
-            return
-        }
+        guard !terminal.inSynchronizedOutput && !inSyncSequence else { return }
         updateCursorPosition()
         guard let (rowStart, rowEnd) = terminal.getUpdateRange () else {
             if notifyUpdateChanges {
@@ -1717,6 +1728,7 @@ extension TerminalView {
     // It is also cheap, so should be called when new data has been posted or received.
     func queuePendingDisplay ()
     {
+        guard !terminal.inSynchronizedOutput && !inSyncSequence else { return }
         // throttle
         if !pendingDisplay {
             let fps60 = 16670000

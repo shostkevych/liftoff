@@ -117,6 +117,19 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
      */
     public weak var terminalDelegate: TerminalViewDelegate?
 
+    /// Handles scroll intent externally when the remote terminal owns the TUI state.
+    public var remoteScrollHandler: ((Int) -> Void)?
+
+    /// Keeps the local viewport fixed while a remote TUI owns scrolling.
+    public var usesRemoteScrolling = false {
+        didSet {
+            if usesRemoteScrolling { scrollToBottom() }
+        }
+    }
+
+    /// Whether tapping the terminal should summon the software keyboard.
+    public var activateKeyboardOnTap = true
+
     /// When set, the terminal uses this fixed grid size instead of deriving it
     /// from the view's bounds. Set to nil to resume bounds-based sizing.
     public var forcedGridSize: (cols: Int, rows: Int)? {
@@ -146,7 +159,16 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
      * If a client application has not indicated any use for mouse events, then this setting
      * does not do anything, and selection and panning are still processed.
      */
-    public var allowMouseReporting: Bool = true
+    public var allowMouseReporting: Bool = true {
+        didSet {
+            guard didFinishSetup else { return }
+            if allowMouseReporting && terminal.mouseMode != .off {
+                enableMousePanGesture()
+            } else {
+                disableMousePanGesture()
+            }
+        }
+    }
 
     /// Controls how link tracking resolves hovered links:
     /// `.explicit` = OSC 8 only, `.implicit` = explicit + implicit fallback, `.none` = off.
@@ -197,6 +219,10 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     var search: SearchService!
     var debug: UIView?
     var pendingDisplay: Bool = false
+    /// Coalesces rapid DEC 2026 synchronized-output blocks into one frame.
+    var syncEndRenderTimer: DispatchWorkItem?
+    var inSyncSequence = false
+    var syncSequenceSettleMs = 16
 #if canImport(MetalKit)
     var metalView: MTKView?
     var metalRenderer: MetalTerminalRenderer?
@@ -736,7 +762,9 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
             }
             queuePendingDisplay()
         } else {
-            let _ = becomeFirstResponder ()
+            if activateKeyboardOnTap {
+                let _ = becomeFirstResponder ()
+            }
         }
     }
     
@@ -978,6 +1006,55 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     }
     
     var panMouseGesture: UIPanGestureRecognizer?
+    private var remoteScrollLastY: CGFloat = 0
+    private var remoteScrollRemainderY: CGFloat = 0
+
+    @objc func panRemoteScrollHandler (_ gesture: UIPanGestureRecognizer) {
+        let canScrollRemote = usesRemoteScrolling && remoteScrollHandler != nil
+        guard canScrollRemote || (terminal.isCurrentBufferAlternate && terminal.mouseMode.sendButtonPress()) else {
+            remoteScrollLastY = 0
+            remoteScrollRemainderY = 0
+            return
+        }
+
+        switch gesture.state {
+        case .began:
+            remoteScrollLastY = gesture.translation(in: self).y
+            remoteScrollRemainderY = 0
+        case .changed:
+            let currentY = gesture.translation(in: self).y
+            remoteScrollRemainderY += currentY - remoteScrollLastY
+            remoteScrollLastY = currentY
+
+            let stepHeight = max(cellDimension.height, 1)
+            let requestedSteps = Int(remoteScrollRemainderY / stepHeight)
+            guard requestedSteps != 0 else { return }
+
+            let steps = max(-3, min(3, requestedSteps))
+            if let remoteScrollHandler {
+                remoteScrollHandler(steps)
+                remoteScrollRemainderY -= CGFloat(steps) * stepHeight
+                return
+            }
+
+            let button = steps > 0 ? 4 : 5
+            let flags = terminal.encodeButton(button: button, release: false,
+                                              shift: false, meta: false, control: false)
+            let col = max(0, terminal.cols / 2)
+            let row = max(0, terminal.rows / 2)
+            for _ in 0..<abs(steps) {
+                terminal.sendEvent(buttonFlags: flags, x: col, y: row,
+                                   pixelX: Int(bounds.midX), pixelY: Int(bounds.midY))
+            }
+            remoteScrollRemainderY -= CGFloat(steps) * stepHeight
+        case .ended, .cancelled, .failed:
+            remoteScrollLastY = 0
+            remoteScrollRemainderY = 0
+        default:
+            break
+        }
+    }
+
     func enableMousePanGesture () {
         guard panMouseGesture == nil else {
             return
@@ -1015,6 +1092,8 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     
     func setupGestures ()
     {
+        panGestureRecognizer.addTarget(self, action: #selector(panRemoteScrollHandler(_:)))
+
         let longPress = UILongPressGestureRecognizer (target: self, action: #selector(longPress(_:)))
         longPress.minimumPressDuration = 0.7
         addGestureRecognizer(longPress)
@@ -1371,12 +1450,40 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     func updateScroller ()
     {
         let displayBuffer = terminal.displayBuffer
+        let oldBottomOffset = max(0, contentSize.height - CGFloat(displayBuffer.rows) * cellDimension.height)
+        let shouldFollowOutput = !isTracking && !isDragging && !isDecelerating &&
+            contentOffset.y >= oldBottomOffset - 1
+
         contentSize = CGSize (width: CGFloat (displayBuffer.cols) * cellDimension.width,
                               height: CGFloat (displayBuffer.lines.count) * cellDimension.height)
-        //contentOffset = CGPoint (x: 0, y: CGFloat (displayBuffer.lines.count-displayBuffer.rows)*cellDimension.height)
-        contentOffset = CGPoint (x: 0, y: CGFloat (displayBuffer.lines.count-displayBuffer.rows)*cellDimension.height)
-        //Xscroller.doubleValue = scrollPosition
-        //Xscroller.knobProportion = scrollThumbsize
+
+        if shouldFollowOutput {
+            contentOffset.y = CGFloat(max(0, displayBuffer.lines.count - displayBuffer.rows)) * cellDimension.height
+        }
+    }
+
+    public func scrollToBottom ()
+    {
+        let displayBuffer = terminal.displayBuffer
+        contentOffset.y = CGFloat(max(0, displayBuffer.lines.count - displayBuffer.rows)) * cellDimension.height
+    }
+
+    public func scrollBy (lines: Int)
+    {
+        guard lines != 0 else { return }
+        if usesRemoteScrolling {
+            remoteScrollHandler?(lines)
+            return
+        }
+        let displayBuffer = terminal.displayBuffer
+        let bottomOffset = CGFloat(max(0, displayBuffer.lines.count - displayBuffer.rows)) * cellDimension.height
+        contentOffset.y = min(bottomOffset, max(0, contentOffset.y - CGFloat(lines) * cellDimension.height))
+    }
+
+    public func refreshEntireScreen ()
+    {
+        terminal.updateFullScreen()
+        queuePendingDisplay()
     }
 
 #if canImport(MetalKit)
@@ -1479,6 +1586,14 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
 
     open override var contentOffset: CGPoint {
         didSet {
+            if usesRemoteScrolling {
+                let displayBuffer = terminal.displayBuffer
+                let bottomOffset = CGFloat(max(0, displayBuffer.lines.count - displayBuffer.rows)) * cellDimension.height
+                if abs(contentOffset.y - bottomOffset) > 1 {
+                    contentOffset.y = bottomOffset
+                    return
+                }
+            }
 #if canImport(MetalKit)
             if useMetalRenderer, metalView != nil {
                 requestMetalDisplay()
@@ -2102,6 +2217,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
 
     func ensureCaretIsVisible ()
     {
+        guard !terminal.inSynchronizedOutput && !inSyncSequence else { return }
         let displayBuffer = terminal.displayBuffer
         contentOffset = CGPoint (x: 0, y: CGFloat (displayBuffer.lines.count-displayBuffer.rows)*cellDimension.height)
     }
@@ -2616,7 +2732,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     }
     
     open func mouseModeChanged(source: Terminal) {
-        if source.mouseMode != .off {
+        if allowMouseReporting && source.mouseMode != .off {
             enableMousePanGesture()
         } else {
             disableMousePanGesture()

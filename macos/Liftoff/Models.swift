@@ -663,6 +663,7 @@ final class AppStore {
     enum SummaryState: Equatable {
         case loading
         case result(String)
+        case noSelection
         case failed(String)
     }
 
@@ -733,7 +734,7 @@ final class AppStore {
     /// when nil/empty we hunt for whichever terminal actually holds the selection.
     func summarizeSelection(text providedText: String? = nil) {
         guard let text = resolveSelectionText(providedText) else {
-            summaryState = .failed("Select some text in a terminal first.")
+            summaryState = .noSelection
             return
         }
         guard hasCerebrasKey else {

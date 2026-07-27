@@ -7,6 +7,71 @@ final class FocusTrackingTerminalView: LocalProcessTerminalView {
     /// The window store that owns this terminal. Keyboard shortcuts and hook
     /// suggestions route here, so they hit the right window when several are open.
     weak var store: AppStore?
+    private var hasAttachedToSuperview = false
+    private var attachmentGeneration = 0
+
+    /// Cached terminal views are detached when switching projects. Mouse-driven
+    /// TUIs can leave an incomplete alternate-screen frame behind, and repainting
+    /// our backing surface cannot recover cells they have not republished. Pulse
+    /// the PTY width on reattachment so the TUI sends a fresh frame.
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        attachmentGeneration += 1
+        guard superview != nil else { return }
+        let isReattachment = hasAttachedToSuperview
+        let generation = attachmentGeneration
+        hasAttachedToSuperview = true
+        if isReattachment {
+            // SwiftUI finishes rebuilding the pane after this callback. Wait
+            // until its backing surface has settled before asking the TUI to
+            // publish the replacement frame.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                guard let self,
+                      self.superview != nil,
+                      self.attachmentGeneration == generation else { return }
+                self.pulseRichTUIResize()
+            }
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.superview != nil else { return }
+                self.redrawVisibleContents()
+            }
+        }
+    }
+
+    private func pulseRichTUIResize() {
+        guard process.running,
+              process.childfd >= 0,
+              getTerminal().isMouseReportingEnabled else {
+            redrawVisibleContents()
+            return
+        }
+
+        var pulseSize = getWindowSize()
+        guard pulseSize.ws_col > 2 else {
+            redrawVisibleContents()
+            return
+        }
+        pulseSize.ws_col -= 1
+        _ = PseudoTerminalHelpers.setWinSize(
+            masterPtyDescriptor: process.childfd,
+            windowSize: &pulseSize)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self, self.superview != nil, self.process.running else { return }
+            var restoredSize = self.getWindowSize()
+            _ = PseudoTerminalHelpers.setWinSize(
+                masterPtyDescriptor: self.process.childfd,
+                windowSize: &restoredSize)
+            self.redrawVisibleContents()
+        }
+    }
+
+    private func redrawVisibleContents() {
+        getTerminal().updateFullScreen()
+        needsDisplay = true
+        displayIfNeeded()
+    }
 
     func installFocusClickRecognizer() {
         let click = NSClickGestureRecognizer(target: self, action: #selector(handleFocusClick))
