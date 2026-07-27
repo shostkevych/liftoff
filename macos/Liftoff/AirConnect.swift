@@ -4,6 +4,12 @@ import CoreImage.CIFilterBuiltins
 /// Discovers the Mac's reachable LAN/VPN addresses and packs them into the
 /// QR payload the iOS companion scans to pair (Air → Connect).
 enum AirPairing {
+    static var relayBaseURL: String {
+        let configured = UserDefaults.standard.string(forKey: "relayBaseURL")?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return configured?.isEmpty == false ? configured! : "wss://relay.shostkevych.com"
+    }
+
     /// All non-loopback IPv4 addresses this machine currently has, most
     /// useful (private LAN ranges) first so the phone tries those first.
     static func localIPv4Addresses() -> [String] {
@@ -53,6 +59,7 @@ enum AirPairing {
             "name": Host.current().localizedName ?? "Mac",
             "ips": ips,
             "token": token,
+            "relay": relayBaseURL,
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
               let json = String(data: data, encoding: .utf8) else { return "" }

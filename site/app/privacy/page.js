@@ -44,14 +44,14 @@ export default function Privacy() {
       <h2><span className="num">3</span>Liftoff Air &amp; the web client</h2>
       <p>
         Liftoff Air mirrors a terminal to the iOS companion app or to a browser. This
-        connection is <strong>peer-to-peer over your own network</strong> — your LAN, or a
-        private mesh VPN such as Tailscale. Terminal output and the input you type travel
-        directly between your devices.
+        connection uses a direct path on your local network when available and an
+        <strong>end-to-end encrypted relay</strong> for remote access. Terminal content is
+        encrypted on one device and decrypted only on the paired device.
       </p>
       <ul>
-        <li>Nothing is uploaded to, logged by, or relayed through any server we operate — because there is none.</li>
+        <li>The relay only forwards opaque encrypted frames. It cannot read terminal output, commands, or session content, and it never receives your encryption key.</li>
         <li>Pairing is established by scanning a QR code and protected with a passcode (and Face ID on iOS).</li>
-        <li>If you choose to enable remote access (e.g. via a VPN), the security of that network is managed by you and the VPN provider you select.</li>
+        <li>The relay necessarily processes limited routing metadata such as session identifiers, connection timing, traffic sizes, and network addresses.</li>
       </ul>
 
       <h2><span className="num">4</span>Third-party AI agents</h2>

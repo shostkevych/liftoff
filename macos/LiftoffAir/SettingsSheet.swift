@@ -1,47 +1,37 @@
 import SwiftUI
-import UIKit
 
-/// App settings: the Mac terminal's IP address and a Face ID lock toggle.
+/// App settings: transport choice, privacy lock, and pairing management.
 struct SettingsSheet: View {
-    @Binding var host: String
     @Binding var faceIDEnabled: Bool
-    /// Called with the (trimmed) host when the user commits a change.
-    let onApply: (String) -> Void
+    @Binding var connectionMode: CompanionClient.ConnectionMode
     /// Unpair this phone: forget the Mac and return to the pairing screen.
     let onDisconnect: () -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var draftHost: String
     @State private var confirmingDisconnect = false
 
-    init(host: Binding<String>, faceIDEnabled: Binding<Bool>,
-         onApply: @escaping (String) -> Void, onDisconnect: @escaping () -> Void) {
-        _host = host
+    init(faceIDEnabled: Binding<Bool>,
+         connectionMode: Binding<CompanionClient.ConnectionMode>,
+         onDisconnect: @escaping () -> Void) {
         _faceIDEnabled = faceIDEnabled
-        self.onApply = onApply
+        _connectionMode = connectionMode
         self.onDisconnect = onDisconnect
-        _draftHost = State(initialValue: host.wrappedValue)
     }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    HStack {
-                        Image(systemName: "desktopcomputer")
-                            .foregroundStyle(.secondary)
-                            .frame(width: 22)
-                        TextField("192.168.0.10", text: $draftHost)
-                            .keyboardType(.numbersAndPunctuation)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .submitLabel(.done)
-                            .onSubmit(apply)
+                    Picker("Connection", selection: $connectionMode) {
+                        ForEach(CompanionClient.ConnectionMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
                     }
-                } header: {
-                    Text("Main Terminal IP")
+                    .pickerStyle(.segmented)
                 } footer: {
-                    Text("The Mac running Liftoff on your local network.")
+                    Text(connectionMode == .relay
+                         ? "Connect securely through Liftoff Relay."
+                         : "Connect only through saved addresses on your local network.")
                 }
 
                 Section {
@@ -73,7 +63,7 @@ struct SettingsSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { apply(); dismiss() }
+                    Button("Done") { dismiss() }
                         .fontWeight(.semibold)
                 }
             }
@@ -91,10 +81,4 @@ struct SettingsSheet: View {
         .preferredColorScheme(.dark)
     }
 
-    private func apply() {
-        let trimmed = draftHost.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return }
-        host = trimmed
-        onApply(trimmed)
-    }
 }

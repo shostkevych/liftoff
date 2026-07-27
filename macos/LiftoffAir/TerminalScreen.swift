@@ -14,29 +14,55 @@ import SwiftTerm
 struct TerminalScreen: View {
     let client: CompanionClient
     let session: CompanionClient.Session
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var bridge = TerminalBridge()
 
     var body: some View {
         GeometryReader { geo in
             VStack(spacing: 0) {
-                TerminalSurface(client: client, session: session, bridge: bridge)
+                ZStack(alignment: .trailing) {
+                    TerminalSurface(client: client, session: session, bridge: bridge)
+                    VerticalScrollControl(bridge: bridge)
+                        .padding(.trailing, 6)
+                }
                 KeyBar(bridge: bridge, bottomInset: geo.safeAreaInsets.bottom)
             }
         }
         .background(Color.black)
+        .onChange(of: client.attachedID) { _, attachedID in
+            if attachedID != session.tid {
+                dismiss()
+            }
+        }
     }
 }
 
 /// Channel between the SwiftUI key bar and the live `TerminalView`.
 final class TerminalBridge: ObservableObject {
     weak var view: SwiftTerm.TerminalView?
-    @Published var keyboardUp: Bool = true
+    @Published var keyboardUp: Bool = false
+    private var fullRefreshUntil = Date.distantPast
 
     func send(_ bytes: [UInt8]) { view?.send(bytes) }
     func up()    { view?.sendKeyUp() }
     func down()  { view?.sendKeyDown() }
     func left()  { view?.sendKeyLeft() }
     func right() { view?.sendKeyRight() }
+    func live()  { view?.scrollToBottom() }
+    func scroll(lines: Int) { view?.scrollBy(lines: lines) }
+
+    func beginRemoteScroll() {
+        fullRefreshUntil = Date().addingTimeInterval(1)
+    }
+
+    func feed(_ data: Data, usesRemoteScrolling: Bool) {
+        guard let view else { return }
+        view.usesRemoteScrolling = usesRemoteScrolling
+        view.feed(byteArray: [UInt8](data)[...])
+        if Date() < fullRefreshUntil {
+            view.refreshEntireScreen()
+        }
+    }
 
     func showKeyboard() {
         guard let view else { return }
@@ -70,19 +96,24 @@ private struct TerminalSurface: UIViewRepresentable {
         view.nativeBackgroundColor = .black
         view.nativeForegroundColor = .init(white: 0.92, alpha: 1)
         view.font = UIFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        // A wide desktop snapshot expands into many more rows after phone-width reflow.
+        view.changeScrollback(10_000)
+        // Reserve one-finger pans for native terminal scrollback, including in TUIs.
+        view.allowMouseReporting = false
+        view.activateKeyboardOnTap = false
         // Drop SwiftTerm's own accessory + alternate keyboard; our KeyBar replaces them.
         view.inputAccessoryView = nil
 
         bridge.view = view
-        client.onBytes = { [weak view] data in
-            view?.feed(byteArray: [UInt8](data)[...])
+        view.remoteScrollHandler = { [weak client] lines in
+            bridge.beginRemoteScroll()
+            client?.sendScroll(lines: lines)
+        }
+        client.onBytes = { [weak bridge, weak client] data in
+            bridge?.feed(data, usesRemoteScrolling: client?.remoteScrollMode ?? false)
         }
         client.attach(session)
 
-        DispatchQueue.main.async {
-            _ = view.becomeFirstResponder()
-            bridge.keyboardUp = true
-        }
         return view
     }
 
@@ -125,6 +156,53 @@ private struct TerminalSurface: UIViewRepresentable {
         func clipboardCopy(source: SwiftTerm.TerminalView, content: Data) {}
         func iTermContent(source: SwiftTerm.TerminalView, content: ArraySlice<UInt8>) {}
         func rangeChanged(source: SwiftTerm.TerminalView, startY: Int, endY: Int) {}
+    }
+}
+
+private struct VerticalScrollControl: View {
+    @ObservedObject var bridge: TerminalBridge
+    @State private var sentSteps = 0
+
+    var body: some View {
+        VStack(spacing: 4) {
+            stepButton("chevron.up", lines: 3, label: "Scroll up")
+
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.white.opacity(0.8))
+                .frame(width: 30, height: 58)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 9))
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 2)
+                        .onChanged { value in
+                            let steps = Int(-value.translation.height / 10)
+                            let delta = steps - sentSteps
+                            if delta != 0 {
+                                bridge.scroll(lines: delta)
+                                sentSteps = steps
+                            }
+                        }
+                        .onEnded { _ in sentSteps = 0 }
+                )
+                .accessibilityLabel("Terminal scroll handle")
+
+            stepButton("chevron.down", lines: -3, label: "Scroll down")
+        }
+    }
+
+    private func stepButton(_ icon: String, lines: Int, label: String) -> some View {
+        Button { bridge.scroll(lines: lines) } label: {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.white.opacity(0.85))
+                .frame(width: 30, height: 28)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 }
 
@@ -176,6 +254,22 @@ private struct KeyBar: View {
                 }
                 .padding(.horizontal, 8)
             }
+
+            Button { bridge.live() } label: {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 6, height: 6)
+                    Text("Live")
+                        .font(.system(size: keyFont, weight: .semibold))
+                }
+                .foregroundColor(.white.opacity(0.9))
+                .frame(width: expanded ? 58 : 52, height: rowHeight)
+                .background(Color.white.opacity(0.10))
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, 4)
 
             // Pinned keyboard toggle.
             Button { bridge.toggleKeyboard() } label: {

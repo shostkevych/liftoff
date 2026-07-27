@@ -633,6 +633,12 @@ open class Terminal {
         }
     }
 
+    /// Whether the running application accepts mouse button presses, including
+    /// wheel events. Some TUIs enable this without switching to the alternate buffer.
+    public var isMouseReportingEnabled: Bool {
+        mouseMode.sendButtonPress()
+    }
+
     // The next four variables determine whether setting/querying should be done using utf8 or latin1
     // and whether the values should be set or queried using hex digits, rather than actual byte streams
     var xtermTitleSetUtf = false

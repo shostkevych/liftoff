@@ -4,6 +4,22 @@ Newest release on top. Each `## <version>` section is shown in-app: in the
 "What's New" popup after an update, and (via release.sh) in Sparkle's update
 prompt.
 
+## 1.12
+
+- Fixed rich terminal apps such as OpenCode appearing blank after switching projects; restored content now redraws as one synchronized frame
+- Liftoff Air terminal scrolling now stays aligned with desktop history, with a live follow control and dedicated scroll handle
+- Liftoff Air now offers explicit Relay and LAN modes, clearer relay recovery, and restores the attached terminal after connection interruptions
+- Improved Instant Terminal focus reliability when summoned over another active app
+- Summarize now explains capture limitations when rich CLI content cannot be selected
+
+## 1.11
+
+- Liftoff Air now connects remotely through a thin cloud relay, with the entire relayed session protected end-to-end using ChaCha20-Poly1305
+- Relay connects first for dependable remote access, then Liftoff Air silently upgrades to a faster Direct connection when the Mac is reachable locally
+- Pairing remains a single QR scan; saved network addresses are never shown and are probed privately in the background
+- Connection status clearly shows whether Liftoff Air is using Relay or Direct
+- Improved Instant Terminal focus when summoned over another active app
+
 ## 1.10
 
 - New: Instant Terminal — press Cmd+I anywhere, even when Liftoff isn't the active app, to summon a floating shell at your home folder, centered on the screen under your cursor

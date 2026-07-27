@@ -49,7 +49,7 @@ export default function Terms() {
       <p>When you use Liftoff, you agree that you are responsible for:</p>
       <ul>
         <li>The commands, scripts, and AI agents you choose to run inside the terminal.</li>
-        <li>Securing the network you use for Liftoff Air, including any VPN you set up for remote access.</li>
+        <li>Keeping your paired devices and pairing QR code secure.</li>
         <li>Complying with the terms and laws that apply to any third-party tools, services, or AI providers you use through the app.</li>
         <li>Backing up your own work — Liftoff does not store or recover your data for you.</li>
       </ul>
