@@ -34,14 +34,6 @@ export default function HeroDemo() {
     <div className={`demo-swap is-${mode}`}>
       <div className="demo-desktop">
         <div className="window">
-          <div className="titlebar">
-            <div className="lights"><i /><i /><i /></div>
-            <div className="tabs">
-              <span className="tab active"><span className="agent" style={{ background: "#cc785c" }} />liftoff · claude</span>
-              <span className="tab"><span className="agent" style={{ background: "#6fbf93" }} />api · codex</span>
-              <span className="tab"><span className="agent" style={{ background: "#7aa2d6" }} />web · gemini</span>
-            </div>
-          </div>
           <video
             ref={desktopRef}
             className="demo-video"
