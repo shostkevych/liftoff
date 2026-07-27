@@ -10,6 +10,10 @@ Watch and steer Claude Code, Codex, Gemini and more — from your Mac, your phon
 
 <p align="center"><a href="https://liftoff.shostkevych.com">liftoff.shostkevych.com</a> · <a href="https://liftoff.shostkevych.com/download">Download for macOS</a> · <a href="https://apps.apple.com/us/app/liftoff-air/id6780915535">Liftoff Air on the App Store</a></p>
 
+<p align="center">
+  <img src="media/liftoff-demo.gif" width="960" alt="Liftoff managing multiple AI-agent terminal sessions">
+</p>
+
 ---
 
 ## Features
