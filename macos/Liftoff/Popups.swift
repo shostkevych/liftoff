@@ -159,6 +159,14 @@ struct SummaryPopup: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
                 attribution
+            case .noSelection:
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Select some text in a terminal first.")
+                    Text("Make sure Liftoff can capture the content. Some CLI tools use rich terminal rendering that isn’t supported yet — we’re working on better handling.")
+                        .foregroundStyle(.tertiary)
+                }
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
             case .failed(let message):
                 Text(message)
                     .font(.system(size: 12))

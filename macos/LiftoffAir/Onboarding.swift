@@ -165,6 +165,7 @@ struct OnboardingView: View {
         if let relay = payload.relay, !relay.isEmpty {
             UserDefaults.standard.set(relay, forKey: "relayBaseURL")
         }
+        UserDefaults.standard.set("relay", forKey: "airConnectionMode")
         onConnect(payload.ips[0])
     }
 

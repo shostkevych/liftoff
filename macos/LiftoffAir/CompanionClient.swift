@@ -15,14 +15,21 @@ private final class RelayWebSocketDelegate: NSObject, URLSessionWebSocketDelegat
     }
 }
 
-/// Direct-first client for the Liftoff Mac companion server, with an opaque
-/// WebSocket relay as fallback.
+/// Explicit Relay-or-LAN client for the Liftoff Mac companion server.
 /// Protocol: newline-delimited JSON; binary payloads are base64-encoded.
 /// After auth, data payloads (`d` field) are ChaChaPoly-encrypted with the
 /// pairing token as the shared key.
 @MainActor
 @Observable
 final class CompanionClient {
+    enum ConnectionMode: String, CaseIterable, Identifiable {
+        case relay
+        case lan
+
+        var id: String { rawValue }
+        var title: String { self == .relay ? "Relay" : "LAN" }
+    }
+
     struct Session: Identifiable, Hashable {
         let tid: String
         let title: String
@@ -60,6 +67,8 @@ final class CompanionClient {
     var recents: [Recent] = []
     var state: String = "disconnected"
     private(set) var connectionKind: String?
+    private(set) var mode: ConnectionMode
+    private(set) var relayUnavailable = false
     var hasLoaded = false
     var attachedID: String?
     var greeting: String?
@@ -90,13 +99,13 @@ final class CompanionClient {
         let transport: Transport
         var inbox = Data()
         var keepalive: Task<Void, Never>?
-        var awaitingUpgradeSnapshot = false
-        var upgradeFrames: [Data] = []
+        var connectTimeout: Task<Void, Never>?
 
         init(_ transport: Transport) { self.transport = transport }
 
         func cancel() {
             keepalive?.cancel()
+            connectTimeout?.cancel()
             transport.cancel()
         }
     }
@@ -105,11 +114,9 @@ final class CompanionClient {
     @ObservationIgnored private var active: Attempt?
     @ObservationIgnored private var connectGeneration = UUID()
     @ObservationIgnored private var reconnectTask: Task<Void, Never>?
-    @ObservationIgnored private var directProbeTask: Task<Void, Never>?
     @ObservationIgnored private var shouldReconnect = false
-    @ObservationIgnored private var lastDirectLoss = Date.distantPast
-    @ObservationIgnored private let pathMonitor = NWPathMonitor()
-    @ObservationIgnored private let pathMonitorQueue = DispatchQueue(label: "com.shostkevych.liftoffair.network-path")
+    @ObservationIgnored private var relayFailurePromptSuppressed = false
+    @ObservationIgnored private var lastTerminalSize: (cols: Int, rows: Int)?
 
     private(set) var host: String
     private let token: String
@@ -122,20 +129,11 @@ final class CompanionClient {
         self.host = host
         self.token = token
         self.demo = demo
+        self.mode = ConnectionMode(
+            rawValue: UserDefaults.standard.string(forKey: "airConnectionMode") ?? "relay"
+        ) ?? .relay
         self.cryptoKey = LiftoffCrypto.tokenToKey(token)
-        pathMonitor.pathUpdateHandler = { [weak self] path in
-            guard path.status == .satisfied else { return }
-            Task { @MainActor [weak self] in
-                guard let self, self.shouldReconnect else { return }
-                companionLog.info("network path changed; reconnecting relay-first")
-                if self.connectionKind == "local" { self.lastDirectLoss = Date() }
-                self.connect()
-            }
-        }
-        pathMonitor.start(queue: pathMonitorQueue)
     }
-
-    deinit { pathMonitor.cancel() }
 
     @discardableResult
     func updateHost(_ newHost: String) -> Bool {
@@ -156,6 +154,7 @@ final class CompanionClient {
 
     func connect() {
         if demo { startDemo(); return }
+        guard !relayUnavailable else { return }
         shouldReconnect = true
         reconnectTask?.cancel()
         reconnectTask = nil
@@ -166,14 +165,35 @@ final class CompanionClient {
         let generation = UUID()
         connectGeneration = generation
 
-        // Prefer the relay without exposing network details. If it cannot
-        // authenticate promptly, silently try every saved local address.
-        startRelay(generation: generation)
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 1_200_000_000)
-            guard let self, self.connectGeneration == generation else { return }
-            self.startDirectCandidates(generation: generation)
+        switch mode {
+        case .relay:
+            startRelay(generation: generation)
+        case .lan:
+            startDirectCandidates(generation: generation)
         }
+    }
+
+    func setMode(_ newMode: ConnectionMode) {
+        guard mode != newMode else { return }
+        disconnect()
+        mode = newMode
+        UserDefaults.standard.set(newMode.rawValue, forKey: "airConnectionMode")
+        relayUnavailable = false
+        relayFailurePromptSuppressed = false
+        hasLoaded = false
+        sessions = []
+        connect()
+    }
+
+    func keepTryingRelay() {
+        guard mode == .relay else { return }
+        relayUnavailable = false
+        relayFailurePromptSuppressed = true
+        connect()
+    }
+
+    func dismissRelayUnavailablePrompt() {
+        relayUnavailable = false
     }
 
     private func startDirectCandidates(generation: UUID) {
@@ -185,7 +205,7 @@ final class CompanionClient {
         }
         guard !alreadyTryingLocal else { return }
         let hosts = directCandidates()
-        companionLog.info("probing \(hosts.count) saved Direct candidate(s)")
+        companionLog.info("connecting to \(hosts.count) saved LAN address(es)")
         for candidate in hosts { startDirect(host: candidate, generation: generation) }
     }
 
@@ -251,14 +271,20 @@ final class CompanionClient {
                       self.attempts[attempt.id] === attempt else { return }
                 // The relay HTTP capability is the authentication step. Never
                 // expose the raw pairing token in a relay frame. Wait for a
-                // valid encrypted Mac response before allowing relay to beat a
-                // still-connecting direct candidate.
+                // valid encrypted Mac response before selecting the transport.
                 self.send(["t": "list"], on: attempt)
             }
         }
         companionLog.info("relay candidate → \(url.absoluteString, privacy: .public)")
         task.resume()
         receiveRelay(on: attempt, task: task, generation: generation)
+        attempt.connectTimeout = Task { @MainActor [weak self, weak attempt] in
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard let self, let attempt, !Task.isCancelled,
+                  self.connectGeneration == generation,
+                  self.attempts[attempt.id] === attempt else { return }
+            self.fail(attempt, error: "Relay could not reach your Mac")
+        }
     }
 
     private func relayURL() -> URL? {
@@ -320,6 +346,7 @@ final class CompanionClient {
     }
 
     func attach(_ session: Session) {
+        if attachedID != session.tid { lastTerminalSize = nil }
         remoteScrollMode = false
         attachedID = session.tid
         if demo { feedDemoSnapshot(for: session); return }
@@ -329,8 +356,18 @@ final class CompanionClient {
     func detach() {
         if !demo { send(["t": "detach"]) }
         attachedID = nil
+        lastTerminalSize = nil
         remoteScrollMode = false
         onBytes = nil
+    }
+
+    /// Resume an open terminal with a fresh transport. Its attachment and last
+    /// viewport size are restored after authentication completes.
+    func resumeAttachedSession() {
+        guard attachedID != nil, !demo else { return }
+        relayUnavailable = false
+        relayFailurePromptSuppressed = true
+        connect()
     }
 
     /// Forward keystrokes from the terminal view to the Mac, encrypted.
@@ -348,6 +385,7 @@ final class CompanionClient {
     }
 
     func sendResize(cols: Int, rows: Int) {
+        lastTerminalSize = (cols, rows)
         if demo { return }
         send(["t": "resize", "cols": cols, "rows": rows])
     }
@@ -455,36 +493,15 @@ final class CompanionClient {
         if active === attempt {
             handle(line)
         } else if type == "authok" {
-            if case .tcp = attempt.transport, let active, case .relay = active.transport {
-                // Direct is authenticated while Relay remains live. Prepare the
-                // current terminal on Direct before replacing Relay.
-                if let attachedID {
-                    attempt.awaitingUpgradeSnapshot = true
-                    send(["t": "attach", "id": attachedID], on: attempt)
-                } else {
-                    promote(attempt, replacingRelay: true)
-                    authed = true
-                    list()
-                }
-            } else {
-                promote(attempt)
-                handle(line)
-            }
-        } else if attempt.awaitingUpgradeSnapshot, type == "size" {
-            attempt.upgradeFrames.append(line)
-        } else if attempt.awaitingUpgradeSnapshot, type == "snapshot" {
-            attempt.upgradeFrames.append(line)
-            let frames = attempt.upgradeFrames
-            promote(attempt, replacingRelay: true)
-            authed = true
-            for frame in frames { handle(frame) }
-            list()
+            promote(attempt)
+            handle(line)
+            restoreAttachment()
         } else if case .relay = attempt.transport, type == "sessions" {
             promote(attempt)
             authed = true
             startRelayKeepalive(on: attempt)
-            startDirectUpgradeLoop()
             handle(line)
+            restoreAttachment()
         } else if ["needauth", "authfail"].contains(type) {
             fail(attempt, error: "authentication rejected")
         }
@@ -494,57 +511,58 @@ final class CompanionClient {
         (try? JSONSerialization.jsonObject(with: line) as? [String: Any])?["t"] as? String
     }
 
-    private func promote(_ winner: Attempt, replacingRelay: Bool = false) {
+    private func promote(_ winner: Attempt) {
         guard attempts[winner.id] === winner else { return }
-        let previous = active
-        if let previous {
-            guard replacingRelay,
-                  case .relay = previous.transport,
-                  case .tcp = winner.transport else { return }
-        }
+        guard active == nil else { return }
         active = winner
         switch winner.transport {
-        case .relay: connectionKind = "relay"
+        case .relay:
+            connectionKind = "relay"
+            relayUnavailable = false
+            relayFailurePromptSuppressed = false
         case .tcp: connectionKind = "local"
         }
         reconnectTask?.cancel()
         reconnectTask = nil
-        directProbeTask?.cancel()
-        directProbeTask = nil
+        winner.connectTimeout?.cancel()
+        winner.connectTimeout = nil
         attempts.removeValue(forKey: winner.id)
         for attempt in attempts.values { attempt.cancel() }
         attempts.removeAll()
-        previous?.cancel()
         state = "connected"
         companionLog.info("authenticated transport selected: \(self.connectionKind ?? "unknown", privacy: .public)")
     }
 
     private func fail(_ attempt: Attempt, error: String?) {
         if active === attempt {
-            if case .tcp = attempt.transport { lastDirectLoss = Date() }
             active = nil
             attempt.cancel()
             authed = false
             connectionKind = nil
-            state = "disconnected"
-            scheduleReconnect()
+            // An interruption after a successful connection is transient. Retry
+            // silently instead of presenting the first-connection relay warning.
+            if mode == .relay { relayFailurePromptSuppressed = true }
+            finishFailedConnection(error)
             return
         }
         guard attempts.removeValue(forKey: attempt.id) != nil else { return }
         attempt.cancel()
-        if case .relay = attempt.transport {
-            state = "connecting"
-            startDirectCandidates(generation: connectGeneration)
-        }
         if attempts.isEmpty, active == nil {
-            state = error.map { "failed: \($0)" } ?? "disconnected"
+            finishFailedConnection(error)
+        }
+    }
+
+    private func finishFailedConnection(_ error: String?) {
+        state = error.map { "failed: \($0)" } ?? "disconnected"
+        if mode == .relay && !relayFailurePromptSuppressed {
+            shouldReconnect = false
+            relayUnavailable = true
+        } else {
             scheduleReconnect()
         }
     }
 
     private func cancelTransports() {
-        directProbeTask?.cancel()
-        directProbeTask = nil
         active?.cancel()
         active = nil
         connectionKind = nil
@@ -562,31 +580,26 @@ final class CompanionClient {
         }
     }
 
+    /// A brief LTE or relay interruption must not eject the user from the
+    /// terminal. The view keeps its attached ID while transport reconnects;
+    /// restore that subscription as soon as the new transport authenticates.
+    private func restoreAttachment() {
+        guard let attachedID else { return }
+        send(["t": "attach", "id": attachedID])
+        if let lastTerminalSize {
+            send(["t": "resize", "cols": lastTerminalSize.cols, "rows": lastTerminalSize.rows])
+        }
+    }
+
     private func startRelayKeepalive(on attempt: Attempt) {
         attempt.keepalive = Task { @MainActor [weak self, weak attempt] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 60_000_000_000)
+                try? await Task.sleep(nanoseconds: 20_000_000_000)
                 guard let self, let attempt, !Task.isCancelled,
                       self.active === attempt else { return }
                 // Application traffic makes the relay's read loop refresh its
                 // idle deadline; WebSocket control pings are consumed below it.
                 self.send(["t": "ping"], on: attempt)
-            }
-        }
-    }
-
-    private func startDirectUpgradeLoop() {
-        directProbeTask?.cancel()
-        directProbeTask = Task { @MainActor [weak self] in
-            while !Task.isCancelled {
-                guard let self, let active = self.active,
-                      case .relay = active.transport else { return }
-                let cooldown = max(1, 15 - Date().timeIntervalSince(self.lastDirectLoss))
-                try? await Task.sleep(nanoseconds: UInt64(cooldown * 1_000_000_000))
-                guard !Task.isCancelled, let active = self.active,
-                      case .relay = active.transport else { return }
-                self.startDirectCandidates(generation: self.connectGeneration)
-                try? await Task.sleep(nanoseconds: 20_000_000_000)
             }
         }
     }

@@ -381,7 +381,7 @@
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEVELOPMENT_TEAM = 696F3B97CX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -390,7 +390,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.11;
+				MARKETING_VERSION = 1.12;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shostkevych.liftoff;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.10;
@@ -474,7 +474,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shostkevych.liftoff.air;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.10;
@@ -496,7 +496,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shostkevych.liftoff.air;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.10;
@@ -511,7 +511,7 @@
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEVELOPMENT_TEAM = 696F3B97CX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -520,7 +520,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.11;
+				MARKETING_VERSION = 1.12;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shostkevych.liftoff;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.10;
@@ -636,10 +636,12 @@
 /* Begin XCSwiftPackageProductDependency section */
 		01F8AD66ADDED893BFAAF557 /* SwiftTerm */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = 96657C44DC6595FC7F885A25 /* XCLocalSwiftPackageReference "SwiftTerm" */;
 			productName = SwiftTerm;
 		};
 		43BFA5D6AEF9D005524C768A /* SwiftTerm */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = 96657C44DC6595FC7F885A25 /* XCLocalSwiftPackageReference "SwiftTerm" */;
 			productName = SwiftTerm;
 		};
 		612082CE6F5AEBA2D6426EAD /* Sparkle */ = {

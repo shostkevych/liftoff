@@ -46,36 +46,72 @@ struct SessionListView: View {
         }
     }
 
+    private var connectionModeBinding: Binding<CompanionClient.ConnectionMode> {
+        Binding(
+            get: { client.mode },
+            set: { client.setMode($0) }
+        )
+    }
+
+    private var relayUnavailableBinding: Binding<Bool> {
+        Binding(
+            get: { client.relayUnavailable },
+            set: { if !$0 { client.dismissRelayUnavailablePrompt() } }
+        )
+    }
+
+    private var closingSessionBinding: Binding<Bool> {
+        Binding(
+            get: { closingSession != nil },
+            set: { if !$0 { closingSession = nil } }
+        )
+    }
+
+    private var settingsSheet: some View {
+        SettingsSheet(
+            faceIDEnabled: $faceIDEnabled,
+            connectionMode: connectionModeBinding,
+            onDisconnect: disconnectPhone
+        )
+    }
+
+    private var shouldShowNewTerminalButton: Bool {
+        groups.isEmpty && client.state == "connected"
+    }
+
+    private var sessionList: some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                header
+                if groups.isEmpty && client.state != "connected" {
+                    Text("Connecting…")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 40)
+                }
+                ForEach(groups, id: \.pid) { group in
+                    projectSection(group)
+                }
+            }
+            .padding(20)
+            .padding(.bottom, 90)
+        }
+        .scrollIndicators(.hidden)
+        .refreshable { await refresh() }
+        .overlay(alignment: .bottomTrailing) { addProjectButton }
+        .overlay {
+            if shouldShowNewTerminalButton {
+                newTerminalButton
+            }
+        }
+    }
+
     var body: some View {
         NavigationStack(path: $path) {
             ZStack {
                 background
                 if initialLoadDone {
-                    ScrollView {
-                        VStack(spacing: 18) {
-                            header
-                            if groups.isEmpty && client.state != "connected" {
-                                Text("Connecting…")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(.secondary)
-                                    .padding(.top, 40)
-                            }
-                            ForEach(groups, id: \.pid) { group in
-                                projectSection(group)
-                            }
-                        }
-                        .padding(20)
-                        .padding(.bottom, 90)
-                    }
-                    .scrollIndicators(.hidden)
-                    .refreshable { await refresh() }
-                    .overlay(alignment: .bottomTrailing) { addProjectButton }
-                    // Nothing open: invite a blank terminal from the center.
-                    .overlay {
-                        if groups.isEmpty && client.state == "connected" {
-                            newTerminalButton
-                        }
-                    }
+                    sessionList
                 } else {
                     launchSpinner
                 }
@@ -88,9 +124,7 @@ struct SessionListView: View {
                 }
             }
             .sheet(isPresented: $showSettings) {
-                SettingsSheet(host: $companionHost, faceIDEnabled: $faceIDEnabled, onApply: { newHost in
-                    if client.updateHost(newHost) { initialLoadDone = false }
-                }, onDisconnect: disconnectPhone)
+                settingsSheet
             }
             .sheet(isPresented: $showRecents) {
                 RecentsSheet(client: client) { showRecents = false }
@@ -115,7 +149,7 @@ struct SessionListView: View {
                     // presents, so the close button appeared to do nothing.
                     .confirmationDialog(
                         "Close this terminal?",
-                        isPresented: Binding(get: { closingSession != nil }, set: { if !$0 { closingSession = nil } }),
+                        isPresented: closingSessionBinding,
                         titleVisibility: .visible
                     ) {
                         Button("Close Terminal", role: .destructive) {
@@ -152,10 +186,11 @@ struct SessionListView: View {
         } message: {
             Text("Lock Liftoff behind Face ID when it opens. You can change this later in Settings.")
         }
-        .onChange(of: client.state) { _, new in
-            if new != "connected" {
-                if !path.isEmpty { path.removeAll() }
-            }
+        .alert("Relay Unavailable", isPresented: relayUnavailableBinding) {
+            Button("Switch to LAN Mode") { client.setMode(.lan) }
+            Button("Keep Trying Relay") { client.keepTryingRelay() }
+        } message: {
+            Text("Liftoff Relay cannot be reached. LAN Mode works only when this iPhone can reach your Mac on the local network.")
         }
         .onChange(of: client.hasLoaded) { _, loaded in
             if loaded { initialLoadDone = true }
@@ -186,12 +221,17 @@ struct SessionListView: View {
                 if faceIDEnabled { unlocked = false }
             case .active:
                 if faceIDEnabled && !unlocked { authenticate() }
+                if !path.isEmpty { client.resumeAttachedSession() }
             default:
                 break
             }
         }
         .onReceive(refreshTimer) { _ in
-            if client.authed { client.list() } else { client.connect() }
+            if client.authed {
+                client.list()
+            } else if client.state != "connecting" {
+                client.connect()
+            }
         }
     }
 

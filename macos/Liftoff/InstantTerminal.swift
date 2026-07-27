@@ -110,16 +110,18 @@ final class InstantTerminalController: NSObject {
     }
 
     /// Make the freshly-created terminal the window's first responder. The view
-    /// isn't in the cache until SwiftUI lays the hosting view out, so retry a
-    /// handful of runloop turns before giving up.
+    /// enters the cache before SwiftUI attaches it to the window, so keep
+    /// retrying until AppKit has actually accepted it as first responder.
     private func focusTerminal(_ session: TerminalSession, in window: NSWindow, attempt: Int) {
         guard self.window === window else { return } // dismissed already
-        if let view = TerminalHostView.cache[session.id] {
+        if let view = TerminalHostView.cache[session.id], view.window === window {
+            if !NSApp.isActive { NSApp.activate(ignoringOtherApps: true) }
             if !window.isKeyWindow { window.makeKeyAndOrderFront(nil) }
-            window.makeFirstResponder(view)
-            return
+            if window.makeFirstResponder(view), window.firstResponder === view {
+                return
+            }
         }
-        guard attempt < 40 else { return }
+        guard attempt < 100 else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { [weak self] in
             self?.focusTerminal(session, in: window, attempt: attempt + 1)
         }

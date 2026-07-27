@@ -113,6 +113,11 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     private var findBarOptions: SearchOptions = SearchOptions()
     var debug: TerminalDebugView?
     var pendingDisplay: Bool = false
+    /// Coalesces rapid DEC 2026 synchronized-output blocks into one frame.
+    var syncEndRenderTimer: DispatchWorkItem?
+    var inSyncSequence = false
+    /// One frame is sufficient for direct rich TUIs without visible input lag.
+    public var syncSequenceSettleMs = 16
 #if canImport(MetalKit)
     var metalView: MTKView?
     var metalRenderer: MetalTerminalRenderer?
@@ -2411,6 +2416,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     
     func ensureCaretIsVisible ()
     {
+        guard !terminal.inSynchronizedOutput && !inSyncSequence else { return }
         let displayBuffer = terminal.displayBuffer
         let realCaret = displayBuffer.y + displayBuffer.yBase
         let viewportEnd = displayBuffer.yDisp + displayBuffer.rows
