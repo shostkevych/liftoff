@@ -49,11 +49,11 @@ export default function HeroDemo() {
             muted
             playsInline
             preload="auto"
-            poster="/demo-poster.jpg"
+            poster="/demo-poster.jpg?v=20260727"
             onEnded={() => setMode("mobile")}
           >
-            <source src="/demo.webm" type="video/webm" />
-            <source src="/demo.mp4" type="video/mp4" />
+            <source src="/demo.webm?v=20260727" type="video/webm" />
+            <source src="/demo.mp4?v=20260727" type="video/mp4" />
           </video>
         </div>
       </div>
