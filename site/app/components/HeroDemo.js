@@ -1,37 +1,49 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 /**
- * Hero demo: plays the desktop walkthrough inside a macOS window, then
- * cross-fades to the iPhone recording in a phone frame, then loops back.
+ * Hero demo: plays the desktop walkthrough and briefly overlays the iPhone
+ * recording once the desktop video reaches 70%.
  */
 export default function HeroDemo() {
-  const [mode, setMode] = useState("desktop"); // "desktop" | "mobile"
+  const [showMobile, setShowMobile] = useState(false);
   const desktopRef = useRef(null);
   const mobileRef = useRef(null);
+  const hasShownMobileRef = useRef(false);
 
-  // Drive playback whenever the active surface changes.
-  useEffect(() => {
+  function handleDesktopProgress() {
     const desktop = desktopRef.current;
-    const mobile = mobileRef.current;
-    if (mode === "desktop") {
-      mobile?.pause();
-      if (desktop) {
-        desktop.currentTime = 0;
-        desktop.play().catch(() => {});
-      }
-    } else {
-      desktop?.pause();
-      if (mobile) {
-        mobile.currentTime = 0;
-        mobile.play().catch(() => {});
-      }
+    if (
+      !desktop?.duration ||
+      hasShownMobileRef.current ||
+      desktop.currentTime / desktop.duration < 0.7
+    ) {
+      return;
     }
-  }, [mode]);
+
+    hasShownMobileRef.current = true;
+    setShowMobile(true);
+
+    const mobile = mobileRef.current;
+    if (mobile) {
+      mobile.currentTime = 0;
+      mobile.play().catch(() => setShowMobile(false));
+    }
+  }
+
+  function restartDesktop() {
+    const desktop = desktopRef.current;
+    hasShownMobileRef.current = false;
+    setShowMobile(false);
+    if (desktop) {
+      desktop.currentTime = 0;
+      desktop.play().catch(() => {});
+    }
+  }
 
   return (
-    <div className={`demo-swap is-${mode}`}>
+    <div className={`demo-swap${showMobile ? " is-mobile" : ""}`}>
       <div className="demo-desktop">
         <div className="window">
           <video
@@ -42,7 +54,8 @@ export default function HeroDemo() {
             playsInline
             preload="auto"
             poster="/demo-poster.jpg?v=20260727"
-            onEnded={() => setMode("mobile")}
+            onTimeUpdate={handleDesktopProgress}
+            onEnded={restartDesktop}
           >
             <source src="/demo.webm?v=20260727" type="video/webm" />
             <source src="/demo.mp4?v=20260727" type="video/mp4" />
@@ -50,7 +63,7 @@ export default function HeroDemo() {
         </div>
       </div>
 
-      <div className="demo-phone" aria-hidden={mode !== "mobile"}>
+      <div className="demo-phone" aria-hidden={!showMobile}>
         <div className="phone phone-video">
           <div className="screen">
             <video
@@ -59,11 +72,11 @@ export default function HeroDemo() {
               muted
               playsInline
               preload="auto"
-              poster="/demo-mobile-poster.jpg"
-              onEnded={() => setMode("desktop")}
+              poster="/demo-mobile-poster.jpg?v=20260727b"
+              onEnded={() => setShowMobile(false)}
             >
-              <source src="/demo-mobile.webm" type="video/webm" />
-              <source src="/demo-mobile.mp4" type="video/mp4" />
+              <source src="/demo-mobile.webm?v=20260727b" type="video/webm" />
+              <source src="/demo-mobile.mp4?v=20260727b" type="video/mp4" />
             </video>
           </div>
         </div>
