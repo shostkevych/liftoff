@@ -3,38 +3,42 @@
 import { useRef, useState } from "react";
 
 /**
- * Hero demo: plays the desktop walkthrough and briefly overlays the iPhone
- * recording once the desktop video reaches 70%.
+ * Hero demo: alternates between ten seconds of the desktop walkthrough and a
+ * ten-second iPhone overlay while holding the desktop frame in the background.
  */
 export default function HeroDemo() {
   const [showMobile, setShowMobile] = useState(false);
   const desktopRef = useRef(null);
   const mobileRef = useRef(null);
-  const hasShownMobileRef = useRef(false);
+  const nextMobileAtRef = useRef(10);
 
   function handleDesktopProgress() {
     const desktop = desktopRef.current;
-    if (
-      !desktop?.duration ||
-      hasShownMobileRef.current ||
-      desktop.currentTime / desktop.duration < 0.7
-    ) {
+    if (!desktop || showMobile || desktop.currentTime < nextMobileAtRef.current) {
       return;
     }
 
-    hasShownMobileRef.current = true;
+    nextMobileAtRef.current += 10;
+    desktop.pause();
     setShowMobile(true);
 
     const mobile = mobileRef.current;
     if (mobile) {
       mobile.currentTime = 0;
-      mobile.play().catch(() => setShowMobile(false));
+      mobile.play().catch(hideMobile);
     }
+  }
+
+  function hideMobile() {
+    mobileRef.current?.pause();
+    setShowMobile(false);
+    desktopRef.current?.play().catch(() => {});
   }
 
   function restartDesktop() {
     const desktop = desktopRef.current;
-    hasShownMobileRef.current = false;
+    nextMobileAtRef.current = 10;
+    mobileRef.current?.pause();
     setShowMobile(false);
     if (desktop) {
       desktop.currentTime = 0;
@@ -72,11 +76,11 @@ export default function HeroDemo() {
               muted
               playsInline
               preload="auto"
-              poster="/demo-mobile-poster.jpg?v=20260727b"
-              onEnded={() => setShowMobile(false)}
+              poster="/demo-mobile-poster.jpg?v=20260727c"
+              onEnded={hideMobile}
             >
-              <source src="/demo-mobile.webm?v=20260727b" type="video/webm" />
-              <source src="/demo-mobile.mp4?v=20260727b" type="video/mp4" />
+              <source src="/demo-mobile.webm?v=20260727c" type="video/webm" />
+              <source src="/demo-mobile.mp4?v=20260727c" type="video/mp4" />
             </video>
           </div>
         </div>
