@@ -4,6 +4,11 @@ Newest release on top. Each `## <version>` section is shown in-app: in the
 "What's New" popup after an update, and (via release.sh) in Sparkle's update
 prompt.
 
+## 1.15
+
+- Added a live memory readout showing how much RAM every terminal is using, with a per-tab breakdown
+- The menu bar now lists each terminal with its memory, jumps straight to it, and can kill it after confirmation
+
 ## 1.14
 
 - Added guided project creation with naming, color tags, destination selection, and immediate opening in Liftoff
