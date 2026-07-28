@@ -67,6 +67,88 @@ struct PopupHeader: View {
     }
 }
 
+struct LiftoffHint: Identifiable, Equatable {
+    let id: Int
+    let title: String
+    let message: String
+
+    static let all: [LiftoffHint] = [
+        .init(id: 0, title: "Instant terminal",
+              message: "Press CMD + I from anywhere to summon a fresh terminal. Press it again to dismiss."),
+        .init(id: 1, title: "Quick project switcher",
+              message: "Hold CMD + SHIFT, use UP or DOWN, then release to switch projects. Number keys work too."),
+        .init(id: 2, title: "Projects side by side",
+              message: "CMD + click projects in the sidebar to keep several of them visible at once."),
+        .init(id: 3, title: "Split a terminal",
+              message: "Press CMD + D to split the focused terminal and work in two shells side by side."),
+        .init(id: 4, title: "Undo a closed terminal",
+              message: "Press CMD + SHIFT + T within 10 seconds to restore a closed terminal with its process and scrollback."),
+        .init(id: 5, title: "Focus one terminal",
+              message: "Press CMD + E to expand the focused split terminal. Press it again to restore the layout."),
+        .init(id: 6, title: "Set split proportions",
+              message: "Use CMD + 1 through CMD + 5 to quickly change how much width the focused terminal receives."),
+        .init(id: 7, title: "Name your tabs",
+              message: "Press CMD + R to give the active terminal a stable custom name."),
+        .init(id: 8, title: "Drop files into the shell",
+              message: "Drag files or folders onto a terminal to insert their shell-escaped paths."),
+        .init(id: 9, title: "Summarize terminal output",
+              message: "Select terminal output and press CMD + F for a concise AI summary."),
+        .init(id: 10, title: "Write multiline prompts",
+              message: "Press SHIFT + RETURN to add a newline without submitting in supported agentic CLIs."),
+        .init(id: 11, title: "Reopen projects on launch",
+              message: "Right-click a project in the sidebar and pin it to reopen it automatically next time."),
+        .init(id: 12, title: "Watch terminal memory",
+              message: "Hover the memory pill in the bottom-right to inspect usage by terminal or close a heavy shell."),
+        .init(id: 13, title: "Take terminals with you",
+              message: "Choose Air → Connect to pair Liftoff Air and securely access your sessions from iPhone."),
+        .init(id: 14, title: "Zoom every terminal",
+              message: "Use CMD + = and CMD + - to change the font size across all open terminals."),
+    ]
+}
+
+/// Compact, non-modal feature toast shown in the top-right corner.
+struct HintToast: View {
+    let hint: LiftoffHint
+    let dismiss: () -> Void
+    let disable: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 7) {
+                Image(systemName: "lightbulb.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color.brand)
+                Text("Liftoff Hint")
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+
+            Text(hint.title)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.primary)
+            Text(hint.message)
+                .font(.system(size: 12.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack {
+                Button("Don’t show hints") { disable() }
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                    .buttonStyle(.borderless)
+                Spacer()
+                Button("Got it", action: dismiss)
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .buttonStyle(.glass)
+                    .controlSize(.small)
+            }
+        }
+        .padding(16)
+        .modifier(PopupCard(width: 340, cornerRadius: 14))
+    }
+}
+
 /// About Liftoff: app icon, version, and a button to check for updates
 /// (Sparkle also checks automatically every hour in the background).
 struct AboutPopup: View {
@@ -745,6 +827,7 @@ struct HookSetupPopup: View {
 /// Cmd+H overlay: hotkeys and features reference.
 struct HelpPopup: View {
     let dismiss: () -> Void
+    let showNextHint: () -> Void
 
     private static let sections: [(title: String, items: [(keys: String, text: String)])] = [
         ("Projects & Panes", [
@@ -794,6 +877,15 @@ struct HelpPopup: View {
                         }
                     }
                 }
+            }
+            Divider().opacity(0.35)
+            HStack {
+                Text("Want another useful shortcut or feature?")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+                Spacer()
+                Button("Show Next Hint", action: showNextHint)
+                    .buttonStyle(.glass)
             }
         }
         .padding(24)

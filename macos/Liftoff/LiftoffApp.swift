@@ -25,6 +25,17 @@ struct LiftoffApp: App {
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates…") { Updater.shared.checkForUpdates() }
             }
+            CommandGroup(after: .help) {
+                Button("Show Next Hint") {
+                    AppStore.shared?.showNextHint()
+                }
+                Button((AppStore.shared?.hintsEnabled ?? true)
+                       ? "Disable Periodic Hints" : "Enable Periodic Hints") {
+                    if let store = AppStore.shared {
+                        store.setHintsEnabled(!store.hintsEnabled)
+                    }
+                }
+            }
             CommandMenu("Air") {
                 Button("Connect…") {
                     AppStore.shared?.airConnectVisible = true
@@ -94,6 +105,7 @@ private struct RootView: View {
             store.restorePinnedProjects()
             store.showWelcomeIfNeeded()
             store.showWhatsNewIfNeeded()
+            store.startHintSchedule()
         }
     }
 }

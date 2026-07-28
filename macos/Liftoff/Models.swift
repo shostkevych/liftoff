@@ -316,6 +316,7 @@ final class AppStore {
     /// Entries drop automatically when a window's store deallocates.
     private static let registry = NSHashTable<AppStore>.weakObjects()
     static var allStores: [AppStore] { registry.allObjects }
+    private static var hintScheduleTask: Task<Void, Never>?
 
     /// Mark this window's store as the frontmost one. Window-targeted actions
     /// (menu commands, remote "open project") act on the most recently activated.
@@ -338,6 +339,7 @@ final class AppStore {
             TerminalHostView.dispose(entry.session)
         }
         closedTerminals.removeAll()
+        hintDismissTask?.cancel()
         projects.removeAll()
         bumpStructure()
         if Self.shared === self { Self.shared = Self.allStores.first { $0 !== self } }
@@ -375,6 +377,10 @@ final class AppStore {
     var pinnedPaths: Set<String> = []
     /// Prevent the Mac from idle-sleeping while Liftoff runs (persisted).
     var keepAwake: Bool = true
+    /// Periodic feature hints can be disabled permanently from a hint or Help.
+    var hintsEnabled: Bool = true
+    /// Index of the next hint so the catalogue rotates across launches.
+    var nextHintIndex: Int = 0
     /// The config dir currently being prompted about (nil = overlay hidden).
     var hookSetupDir: URL?
     /// Which agent the pending hook prompt is for (drives install + popup copy).
@@ -428,6 +434,8 @@ final class AppStore {
         pinnedPaths = Set(settings.pinnedProjectPaths)
         paneLayout.sidebarWidth = settings.sidebarWidth
         keepAwake = settings.keepAwake
+        hintsEnabled = settings.hintsEnabled
+        nextHintIndex = settings.nextHintIndex
         cerebrasApiKey = SettingsStore.cerebrasApiKey
         TerminalHostView.fontSize = settings.terminalFontSize
         Self.shared = self
@@ -458,7 +466,9 @@ final class AppStore {
             sidebarWidth: paneLayout.sidebarWidth,
             // Carry the pairing token through — omitting it wiped it on every
             // save, silently rotating the token and breaking phone pairing.
-            companionToken: SettingsStore.load().companionToken
+            companionToken: SettingsStore.load().companionToken,
+            hintsEnabled: hintsEnabled,
+            nextHintIndex: nextHintIndex
         )
         // Save secrets to Keychain separately
         SettingsStore.webPassword = webPassword
@@ -671,6 +681,9 @@ final class AppStore {
     /// Cancellable summary request; cancelled on dismiss and on re-entry so a
     /// stale in-flight request can't overwrite a newer one. Ignored by observation.
     @ObservationIgnored private var summarizeTask: Task<Void, Never>?
+    /// Small top-right feature hint currently being shown.
+    var visibleHint: LiftoffHint?
+    @ObservationIgnored private var hintDismissTask: Task<Void, Never>?
     /// Cmd+H: hotkeys & features overlay.
     var helpVisible = false
     /// Air → Connect: QR-code pairing overlay for the iOS companion.
@@ -690,6 +703,62 @@ final class AppStore {
     /// Cmd+O / sidebar +: open-project picker shown as a modal (only once a
     /// project is already open; the empty state shows the full-screen picker).
     var newProjectVisible = false
+
+    /// Start one app-wide hint rotation: first after a minute, then every 30 minutes.
+    func startHintSchedule() {
+        guard Self.hintScheduleTask == nil else { return }
+        Self.hintScheduleTask = Task { @MainActor in
+            var delay: UInt64 = 60_000_000_000
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: delay)
+                guard !Task.isCancelled else { break }
+                let didShow = AppStore.shared?.showNextHint(automatically: true) ?? false
+                delay = didShow ? 1_800_000_000_000 : 300_000_000_000
+            }
+        }
+    }
+
+    /// Advance through the catalogue. Manual requests work even when periodic hints are off.
+    @discardableResult
+    func showNextHint(automatically: Bool = false) -> Bool {
+        if automatically {
+            guard hintsEnabled, canAutomaticallyShowHint else { return false }
+        }
+        guard !LiftoffHint.all.isEmpty else { return false }
+
+        let index = nextHintIndex % LiftoffHint.all.count
+        let hint = LiftoffHint.all[index]
+        nextHintIndex = (index + 1) % LiftoffHint.all.count
+        visibleHint = hint
+        persist()
+
+        hintDismissTask?.cancel()
+        hintDismissTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 14_000_000_000)
+            guard !Task.isCancelled, self?.visibleHint?.id == hint.id else { return }
+            self?.visibleHint = nil
+        }
+        return true
+    }
+
+    func dismissHint() {
+        hintDismissTask?.cancel()
+        visibleHint = nil
+    }
+
+    func setHintsEnabled(_ enabled: Bool) {
+        hintsEnabled = enabled
+        if !enabled { dismissHint() }
+        persist()
+    }
+
+    private var canAutomaticallyShowHint: Bool {
+        NSApp.isActive && hostWindow?.isVisible != false && visibleHint == nil
+            && summaryState == nil && renamingTerminal == nil && !helpVisible
+            && !airConnectVisible && !webPasswordVisible && !cerebrasKeyVisible
+            && tagPromptFolder == nil && hookSetupDir == nil && !newProjectVisible
+            && !aboutVisible && !welcomeVisible && !whatsNewVisible
+    }
 
     /// Open the new-project picker. With no project yet, the full-screen picker
     /// is already on screen, so this is a no-op; otherwise show it as a modal.

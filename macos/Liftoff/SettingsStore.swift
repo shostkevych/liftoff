@@ -16,11 +16,15 @@ enum SettingsStore {
         var sidebarWidth: CGFloat = 220
         /// Persistent token for companion auth. Generated once, survives restarts.
         var companionToken: String = ""
+        /// Whether Liftoff may periodically surface feature hints.
+        var hintsEnabled: Bool = true
+        /// The next hint in the rotating catalogue.
+        var nextHintIndex: Int = 0
 
         enum CodingKeys: String, CodingKey {
             case recentProjectPaths, terminalFontSize, projectTags, projectColors,
                  hasSeenWelcome, declinedHookDirs, keepAwake, pinnedProjectPaths,
-                 sidebarWidth, companionToken
+                 sidebarWidth, companionToken, hintsEnabled, nextHintIndex
             // Legacy webPassword + cerebrasApiKey decoded during migration then dropped.
         }
 
@@ -28,7 +32,8 @@ enum SettingsStore {
              projectTags: [String: ProjectTag] = [:], hasSeenWelcome: Bool = false,
              declinedHookDirs: [String] = [], keepAwake: Bool = true,
              pinnedProjectPaths: [String] = [], sidebarWidth: CGFloat = 220,
-             companionToken: String = "") {
+             companionToken: String = "", hintsEnabled: Bool = true,
+             nextHintIndex: Int = 0) {
             self.recentProjectPaths = recentProjectPaths
             self.terminalFontSize = terminalFontSize
             self.projectTags = projectTags
@@ -38,6 +43,8 @@ enum SettingsStore {
             self.pinnedProjectPaths = pinnedProjectPaths
             self.sidebarWidth = sidebarWidth
             self.companionToken = companionToken
+            self.hintsEnabled = hintsEnabled
+            self.nextHintIndex = nextHintIndex
         }
 
         init(from decoder: Decoder) throws {
@@ -56,6 +63,8 @@ enum SettingsStore {
             pinnedProjectPaths = try c.decodeIfPresent([String].self, forKey: .pinnedProjectPaths) ?? []
             sidebarWidth = try c.decodeIfPresent(CGFloat.self, forKey: .sidebarWidth) ?? 220
             companionToken = try c.decodeIfPresent(String.self, forKey: .companionToken) ?? ""
+            hintsEnabled = try c.decodeIfPresent(Bool.self, forKey: .hintsEnabled) ?? true
+            nextHintIndex = try c.decodeIfPresent(Int.self, forKey: .nextHintIndex) ?? 0
         }
 
         func encode(to encoder: Encoder) throws {
@@ -69,6 +78,8 @@ enum SettingsStore {
             try c.encode(pinnedProjectPaths, forKey: .pinnedProjectPaths)
             try c.encode(sidebarWidth, forKey: .sidebarWidth)
             try c.encode(companionToken, forKey: .companionToken)
+            try c.encode(hintsEnabled, forKey: .hintsEnabled)
+            try c.encode(nextHintIndex, forKey: .nextHintIndex)
         }
     }
 

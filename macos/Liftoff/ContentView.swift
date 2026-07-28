@@ -20,6 +20,18 @@ struct ContentView: View {
         .background(WindowChromeRemover())
         .background(WindowCapture { store.hostWindow = $0 })
         .ignoresSafeArea(.container, edges: .top)
+        .overlay(alignment: .topTrailing) {
+            if let hint = store.visibleHint {
+                HintToast(
+                    hint: hint,
+                    dismiss: { store.dismissHint() },
+                    disable: { store.setHintsEnabled(false) }
+                )
+                .padding(.top, 14)
+                .padding(.trailing, 14)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+        }
         .overlay(alignment: .top) {
             if let state = store.summaryState {
                 ZStack(alignment: .top) {
@@ -44,7 +56,13 @@ struct ContentView: View {
             if store.helpVisible {
                 ZStack {
                     PopupBackdrop { store.helpVisible = false }
-                    HelpPopup { store.helpVisible = false }
+                    HelpPopup(
+                        dismiss: { store.helpVisible = false },
+                        showNextHint: {
+                            store.helpVisible = false
+                            DispatchQueue.main.async { store.showNextHint() }
+                        }
+                    )
                         .transition(.opacity.combined(with: .scale(scale: 0.97)))
                 }
             }
@@ -163,6 +181,7 @@ struct ContentView: View {
             }
         }
         .animation(.snappy(duration: 0.2), value: store.summaryState == nil)
+        .animation(.snappy(duration: 0.22), value: store.visibleHint?.id)
         .animation(.smooth(duration: 0.3), value: store.welcomeVisible)
         .animation(.snappy(duration: 0.2), value: store.helpVisible)
         .animation(.snappy(duration: 0.2), value: store.airConnectVisible)
