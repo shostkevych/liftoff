@@ -751,9 +751,8 @@ struct ProjectPane: View {
     }
 }
 
-/// Cmd+Shift HUD: a centered, numbered list of open projects. Appears while
-/// ⌘⇧ is held; ⌘⇧+N (1…9) switches to the Nth project. Non-interactive — it
-/// floats over the terminals without stealing keyboard focus.
+/// Cmd+Shift HUD: arrows or 1…9 highlight a project while the chord is held;
+/// releasing the modifiers confirms it without stealing terminal focus.
 struct ProjectSwitcherOverlay: View {
     @Environment(AppStore.self) private var store
 
@@ -774,7 +773,7 @@ struct ProjectSwitcherOverlay: View {
                 }
             }
 
-            Text("Hold ⌘⇧ · press a number")
+            Text("↑↓ choose · release to open · 1–9 select")
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
         }
@@ -798,7 +797,7 @@ struct ProjectSwitcherOverlay: View {
 
     private func row(number: Int, project: Project) -> some View {
         let color = store.tagColor(for: project.folder) ?? .secondary
-        let isSelected = store.selectedProjectIDs.contains(project.id)
+        let isSelected = store.projectSwitcherSelectionIndex == number - 1
         let tabCount = project.terminals.count
         return HStack(spacing: 10) {
             Text("\(number)")

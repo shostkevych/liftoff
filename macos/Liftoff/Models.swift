@@ -359,6 +359,10 @@ final class AppStore {
     /// Cmd+Shift HUD: numbered project quick-switch overlay, visible while the
     /// ⌘⇧ chord is held (driven by the key monitor's flagsChanged handler).
     var projectSwitcherVisible = false
+    /// Highlighted HUD row. Arrow keys move it; releasing ⌘⇧ confirms it.
+    var projectSwitcherSelectionIndex: Int?
+    /// Prevent a modifier tap from collapsing an existing multi-project layout.
+    private var projectSwitcherSelectionChanged = false
     /// Last opened project folders, most recent first (persisted in ~/.liftoff).
     var recentProjectPaths: [String] = []
     /// User-assigned tags (label + color) per project path (persisted in ~/.liftoff).
@@ -916,11 +920,48 @@ final class AppStore {
         activate()
     }
 
-    /// Cmd+Shift+N quick-switch: show only the Nth open project (0-based index,
-    /// matching the HUD's 1…9 badges). Out-of-range indices are ignored.
+    /// Show only the Nth open project (0-based index). Out-of-range indices are ignored.
     func quickSwitch(toIndex index: Int) {
         guard projects.indices.contains(index) else { return }
         selectOnly(projects[index])
+    }
+
+    /// Begin a deferred project choice, initially highlighting the active project.
+    func beginProjectSwitcher() {
+        guard !projects.isEmpty else { return }
+        let visibleCount = min(projects.count, 9)
+        projectSwitcherSelectionIndex = projects.firstIndex { $0.id == activeProjectID }
+            .flatMap { $0 < visibleCount ? $0 : nil } ?? 0
+        projectSwitcherSelectionChanged = false
+        projectSwitcherVisible = true
+    }
+
+    /// Move the HUD highlight, wrapping within the visible project rows.
+    func moveProjectSwitcherSelection(by delta: Int) {
+        let count = min(projects.count, 9)
+        guard count > 0 else { return }
+        if !projectSwitcherVisible { beginProjectSwitcher() }
+        let current = projectSwitcherSelectionIndex ?? 0
+        projectSwitcherSelectionIndex = (current + delta + count) % count
+        projectSwitcherSelectionChanged = true
+    }
+
+    /// Highlight a numbered row without switching until the modifier chord is released.
+    func highlightProjectSwitcher(at index: Int) {
+        guard projects.indices.contains(index), index < 9 else { return }
+        projectSwitcherSelectionIndex = index
+        projectSwitcherSelectionChanged = true
+    }
+
+    /// Confirm the highlighted project when the user releases ⌘⇧.
+    func commitProjectSwitcherSelection() {
+        guard projectSwitcherVisible else { return }
+        let index = projectSwitcherSelectionIndex
+        let shouldSwitch = projectSwitcherSelectionChanged
+        projectSwitcherVisible = false
+        projectSwitcherSelectionIndex = nil
+        projectSwitcherSelectionChanged = false
+        if shouldSwitch, let index { quickSwitch(toIndex: index) }
     }
 
     /// Sidebar Cmd+click: add/remove this project from the shown set. Never
