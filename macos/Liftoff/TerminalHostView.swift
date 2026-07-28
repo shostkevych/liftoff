@@ -292,8 +292,7 @@ final class FocusTrackingTerminalView: LocalProcessTerminalView {
     /// if set — agents inherit it into their children, so we read it from
     /// whichever process exposes it. Resolves which config folder the session
     /// actually uses (nil = the agent's default). Generic over the env-key so
-    /// both Claude (`CLAUDE_CONFIG_DIR`) and opencode (`OPENCODE_CONFIG_DIR`)
-    /// share the same sysctl walk.
+    /// supported agents share the same sysctl walk.
     static func configDir(pgid: pid_t, envKey: String) -> String? {
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PGRP, pgid]
         var size = 0
@@ -628,6 +627,11 @@ struct TerminalHostView: NSViewRepresentable {
                         .map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
                         ?? HookSetup.defaultConfigDir
                     owner?.maybeSuggestHookSetup(agent: .claude, configDir: dir)
+                } else if agent == .codex {
+                    let dir = FocusTrackingTerminalView.configDir(pgid: pgid, envKey: "CODEX_HOME")
+                        .map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
+                        ?? CodexHookSetup.defaultConfigDir
+                    owner?.maybeSuggestHookSetup(agent: .codex, configDir: dir)
                 } else if agent == .opencode {
                     let dir = FocusTrackingTerminalView.configDir(pgid: pgid, envKey: "OPENCODE_CONFIG_DIR")
                         .map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
@@ -652,7 +656,7 @@ struct TerminalHostView: NSViewRepresentable {
         env.append("LANG=en_US.UTF-8")
         env.append("LIFTOFF=1")
         env.append("TERM_PROGRAM=Liftoff")
-        // Lets our Claude UserPromptSubmit hook route the work title back to
+        // Lets agent UserPromptSubmit hooks route the work title back to
         // exactly this terminal session (see HookSetup / NotificationServer).
         env.append("LIFTOFF_SESSION_ID=\(session.id.uuidString)")
 

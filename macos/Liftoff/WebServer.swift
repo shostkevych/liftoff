@@ -2,12 +2,12 @@ import Foundation
 import Network
 
 /// Serves the bundled browser client (web/index.html + icon.png) over HTTP so a
-/// phone or laptop on the LAN/VPN can open `http://<mac-ip>:48626` directly —
-/// no external hosting needed. The page then talks to the WebSocket on 48625.
+/// phone or laptop on the LAN/VPN can open it directly. The page then talks to
+/// this build variant's WebSocket server.
 @MainActor
 final class WebServer {
     static let shared = WebServer()
-    static let port: UInt16 = 48626
+    static let port: UInt16 = 48626 + BuildVariant.portOffset
 
     private var listener: NWListener?
 
@@ -58,8 +58,13 @@ final class WebServer {
     /// at first access instead of hitting the bundle + disk on every request.
     nonisolated private static let indexResponse: Data? = {
         guard let url = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "web"),
-              let data = try? Data(contentsOf: url) else { return nil }
-        return http(status: "200 OK", contentType: "text/html; charset=utf-8", body: data)
+              let html = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        let configured = html.replacingOccurrences(
+            of: ":48625", with: ":\(48625 + BuildVariant.portOffset)")
+        return http(
+            status: "200 OK",
+            contentType: "text/html; charset=utf-8",
+            body: Data(configured.utf8))
     }()
 
     nonisolated private static let iconResponse: Data? = {

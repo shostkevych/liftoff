@@ -654,7 +654,7 @@ private struct FlowLayout: Layout {
     }
 }
 
-/// Shown the first time an agent session (Claude Code or opencode) is detected
+/// Shown the first time a supported agent session is detected
 /// and Liftoff's notification hook isn't installed yet: offers to wire it into
 /// the agent's config folder.
 struct HookSetupPopup: View {
@@ -664,14 +664,33 @@ struct HookSetupPopup: View {
 
     /// The human-readable agent name for copy.
     private var agentName: String {
-        agent == .opencode ? "opencode" : "Claude Code"
+        switch agent {
+        case .codex: "Codex"
+        case .opencode: "opencode"
+        default: "Claude Code"
+        }
     }
 
     /// The config file the hook lands in, with the home folder abbreviated.
     private var settingsPath: String {
-        let suffix = agent == .opencode ? "plugins/liftoff-notify.js" : "settings.json"
+        let suffix = switch agent {
+        case .codex: "hooks.json"
+        case .opencode: "plugin/liftoff-notify.js"
+        default: "settings.json"
+        }
         return (configDir.appendingPathComponent(suffix).path as NSString)
             .abbreviatingWithTildeInPath
+    }
+
+    private var setupDescription: String {
+        switch agent {
+        case .codex:
+            "Adds PermissionRequest + Stop hooks to \(settingsPath); approve them once with /hooks"
+        case .opencode:
+            "Adds a notify plugin to \(settingsPath)"
+        default:
+            "Adds Notification + Stop hooks to \(settingsPath)"
+        }
     }
 
     var body: some View {
@@ -686,9 +705,7 @@ struct HookSetupPopup: View {
             VStack(alignment: .leading, spacing: 8) {
                 hookRow(icon: "bell", text: "Native banner per project when \(agentName) pauses for input")
                 hookRow(icon: "checkmark.circle", text: "A ping when a response finishes")
-                hookRow(icon: "gearshape", text: agent == .opencode
-                        ? "Adds a notify plugin to \(settingsPath)"
-                        : "Adds Notification + Stop hooks to \(settingsPath)")
+                hookRow(icon: "gearshape", text: setupDescription)
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -754,7 +771,7 @@ struct HelpPopup: View {
         ]),
         ("AI", [
             ("⌘F", "Summarize selected text with Gemma"),
-            ("Notifications", "Claude Code pushes per project via hooks"),
+            ("Notifications", "Claude Code, Codex, and opencode push per project via hooks"),
         ]),
     ]
 

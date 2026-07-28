@@ -18,6 +18,8 @@ targets:
       - Liftoff
       - path: icon.icon
         buildPhase: resources
+      - path: dev-icon.icon
+        buildPhase: resources
       - path: notification.caf
         buildPhase: resources
       - path: icon.png

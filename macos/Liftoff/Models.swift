@@ -369,7 +369,7 @@ final class AppStore {
     var cerebrasApiKey: String = ""
     /// Whether the first-launch welcome guide has been completed (persisted).
     var hasSeenWelcome: Bool = false
-    /// Claude config-dir paths the user declined the hook for (persisted).
+    /// Agent config-dir paths the user declined the hook for (persisted).
     var declinedHookDirs: Set<String> = []
     /// Project folder paths the user pinned — reopened on next launch (persisted).
     var pinnedPaths: Set<String> = []
@@ -481,19 +481,17 @@ final class AppStore {
         persist()
     }
 
-    // MARK: Claude notification-hook suggestion
+    // MARK: Agent notification-hook suggestion
 
-    /// Called when a Claude session is first detected in a terminal, with the
-    /// config folder that session uses (CLAUDE_CONFIG_DIR/OPENCODE_CONFIG_DIR,
-    /// or the agent default). Offers to install Liftoff's notification hook
-    /// there if it isn't already set up and the user hasn't declined that
-    /// folder. Each folder is offered once.
+    /// Called when a supported agent is first detected in a terminal, with the
+    /// config folder that session uses or the agent default.
     func maybeSuggestHookSetup(agent: Agent, configDir: URL) {
         let path = configDir.path
         guard hookSetupDir == nil, !welcomeVisible else { return }
         guard !suggestedHookDirs.contains(path), !declinedHookDirs.contains(path) else { return }
         let installed: Bool
         switch agent {
+        case .codex: installed = CodexHookSetup.isInstalled(in: configDir)
         case .opencode: installed = OpenCodeHookSetup.isInstalled(in: configDir)
         default: installed = HookSetup.isInstalled(in: configDir)
         }
@@ -507,6 +505,7 @@ final class AppStore {
     func installNotificationHook() {
         if let dir = hookSetupDir {
             switch hookSetupAgent {
+            case .codex: CodexHookSetup.install(in: dir)
             case .opencode: OpenCodeHookSetup.install(in: dir)
             default: HookSetup.install(in: dir)
             }

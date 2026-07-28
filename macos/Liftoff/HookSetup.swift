@@ -1,7 +1,12 @@
 import Foundation
 
+private enum HookEndpoint {
+    static let marker = "localhost:\(48623 + BuildVariant.portOffset)"
+    static let baseURL = "http://\(marker)"
+}
+
 /// Manages Liftoff's Claude Code notification hook in ~/.claude/settings.json.
-/// The hook curls Liftoff's local NotificationServer (port 48623) on the
+/// The hook curls Liftoff's local NotificationServer on the
 /// Notification and Stop events, so a running agent surfaces native macOS
 /// banners (project-aware title) without any extra setup from the user.
 enum HookSetup {
@@ -16,7 +21,7 @@ enum HookSetup {
     /// Substring that uniquely identifies our hook in the settings file. Must
     /// survive JSON escaping — `JSONSerialization` writes `/` as `\/`, so the
     /// marker deliberately avoids slashes (the port alone is unique enough).
-    private static let marker = "localhost:48623"
+    private static let marker = HookEndpoint.marker
 
     /// Older Liftoff builds installed a separate `claude-notify.sh` script hook
     /// for the same events. It doesn't contain `marker`, so dedup must match it
@@ -77,14 +82,14 @@ enum HookSetup {
         "I=$(cat); D=$(printf '%s' \"$I\" | jq -r '.cwd // empty'); "
         + "M=$(printf '%s' \"$I\" | jq -r '.message // \"Needs your attention\"'); "
         + "T=$([ -n \"$D\" ] && basename \"$D\" || echo 'Claude Code'); "
-        + "curl -sG http://localhost:48623/notify "
+        + "curl -sG \(HookEndpoint.baseURL)/notify "
         + "--data-urlencode \"title=$T\" --data-urlencode \"message=$M\" >/dev/null 2>&1"
 
     /// Fired when Claude finishes a response.
     private static let stopCommand =
         "I=$(cat); D=$(printf '%s' \"$I\" | jq -r '.cwd // empty'); "
         + "T=$([ -n \"$D\" ] && basename \"$D\" || echo 'Claude Code'); "
-        + "curl -sG http://localhost:48623/notify "
+        + "curl -sG \(HookEndpoint.baseURL)/notify "
         + "--data-urlencode \"title=$T\" --data-urlencode 'message=Finished' >/dev/null 2>&1"
 
     /// Fired when the user submits a prompt — sends the prompt text as this
@@ -93,8 +98,100 @@ enum HookSetup {
     private static let userPromptSubmitCommand =
         "I=$(cat); P=$(printf '%s' \"$I\" | jq -r '.prompt // empty'); "
         + "[ -n \"$LIFTOFF_SESSION_ID\" ] && [ -n \"$P\" ] && "
-        + "curl -sG http://localhost:48623/worktitle "
+        + "curl -sG \(HookEndpoint.baseURL)/worktitle "
         + "--data-urlencode \"session=$LIFTOFF_SESSION_ID\" --data-urlencode \"title=$P\" >/dev/null 2>&1"
+}
+
+/// Manages Liftoff's Codex hooks in ~/.codex/hooks.json. Codex exposes the
+/// PermissionRequest, Stop, and UserPromptSubmit lifecycle events needed to
+/// mirror Claude's attention, completion, and work-title integration.
+enum CodexHookSetup {
+    /// The default config folder when a session sets no CODEX_HOME.
+    static let defaultConfigDir = URL(fileURLWithPath: NSHomeDirectory())
+        .appendingPathComponent(".codex")
+
+    private static func hooksFile(in configDir: URL) -> URL {
+        configDir.appendingPathComponent("hooks.json")
+    }
+
+    private static let marker = HookEndpoint.marker
+
+    static func isInstalled(in configDir: URL) -> Bool {
+        guard let data = try? Data(contentsOf: hooksFile(in: configDir)),
+              let text = String(data: data, encoding: .utf8) else { return false }
+        return text.contains(marker)
+            && text.contains("PermissionRequest")
+            && text.contains("worktitle")
+    }
+
+    /// Merge Liftoff's hooks into Codex's hooks.json while preserving any
+    /// existing lifecycle hooks.
+    @discardableResult
+    static func install(in configDir: URL) -> Bool {
+        let file = hooksFile(in: configDir)
+        var root: [String: Any] = [:]
+        if FileManager.default.fileExists(atPath: file.path) {
+            guard let data = try? Data(contentsOf: file),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else { return false }
+            root = json
+        }
+        guard root["hooks"] == nil || root["hooks"] is [String: Any] else { return false }
+        var hooks = root["hooks"] as? [String: Any] ?? [:]
+        hooks["PermissionRequest"] = appended(
+            to: hooks["PermissionRequest"], command: permissionRequestCommand)
+        hooks["Stop"] = appended(to: hooks["Stop"], command: stopCommand)
+        hooks["UserPromptSubmit"] = appended(
+            to: hooks["UserPromptSubmit"], command: userPromptSubmitCommand)
+        root["hooks"] = hooks
+
+        guard let out = try? JSONSerialization.data(
+            withJSONObject: root, options: [.prettyPrinted, .sortedKeys]) else { return false }
+        try? FileManager.default.createDirectory(
+            at: configDir, withIntermediateDirectories: true)
+        return (try? out.write(to: file)) != nil
+    }
+
+    private static func appended(to existing: Any?, command: String) -> [[String: Any]] {
+        var matchers = existing as? [[String: Any]] ?? []
+        matchers.removeAll { matcher in
+            guard let hooks = matcher["hooks"] as? [[String: Any]] else { return false }
+            return hooks.contains { hook in
+                guard let command = hook["command"] as? String else { return false }
+                return command.contains(marker)
+            }
+        }
+        matchers.append(["hooks": [[
+            "type": "command",
+            "command": command,
+            "timeout": 3
+        ]]])
+        return matchers
+    }
+
+    private static let permissionRequestCommand =
+        "I=$(cat); D=$(printf '%s' \"$I\" | jq -r '.cwd // empty'); "
+        + "M=$(printf '%s' \"$I\" | jq -r '.tool_input.description // \"Needs your attention\"'); "
+        + "T=$([ -n \"$D\" ] && basename \"$D\" || echo 'Codex'); "
+        + "curl -sG \(HookEndpoint.baseURL)/notify "
+        + "--data-urlencode \"title=$T\" --data-urlencode \"message=$M\" "
+        + "--data-urlencode 'source=codex' >/dev/null 2>&1 || true"
+
+    /// Stop hooks require valid JSON on stdout, so return an empty object after
+    /// posting the notification.
+    private static let stopCommand =
+        "I=$(cat); D=$(printf '%s' \"$I\" | jq -r '.cwd // empty'); "
+        + "T=$([ -n \"$D\" ] && basename \"$D\" || echo 'Codex'); "
+        + "curl -sG \(HookEndpoint.baseURL)/notify "
+        + "--data-urlencode \"title=$T\" --data-urlencode 'message=Finished' "
+        + "--data-urlencode 'source=codex' >/dev/null 2>&1 || true; printf '{}'"
+
+    private static let userPromptSubmitCommand =
+        "I=$(cat); P=$(printf '%s' \"$I\" | jq -r '.prompt // empty'); "
+        + "if [ -n \"$LIFTOFF_SESSION_ID\" ] && [ -n \"$P\" ]; then "
+        + "curl -sG \(HookEndpoint.baseURL)/worktitle "
+        + "--data-urlencode \"session=$LIFTOFF_SESSION_ID\" "
+        + "--data-urlencode \"title=$P\" >/dev/null 2>&1 || true; fi"
 }
 
 /// Manages Liftoff's opencode notification plugin in
@@ -110,7 +207,7 @@ enum OpenCodeHookSetup {
     private static let pluginFileName = "liftoff-notify.js"
 
     /// Substring that uniquely identifies our plugin in the plugins folder.
-    private static let marker = "localhost:48623"
+    private static let marker = HookEndpoint.marker
 
     /// opencode loads plugins from the `plugin/` (singular) directory.
     private static let pluginDirName = "plugin"
@@ -147,7 +244,7 @@ export const LiftoffNotify = async ({ directory }) => {
   const notify = async (message) => {
     try {
       const params = new URLSearchParams({ title, message, source: "opencode" });
-      await fetch(`http://localhost:48623/notify?${params}`);
+      await fetch(`\(HookEndpoint.baseURL)/notify?${params}`);
     } catch {}
   };
   return {

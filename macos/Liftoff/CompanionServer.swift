@@ -31,13 +31,13 @@ private final class MacRelayWebSocketDelegate: NSObject, URLSessionWebSocketDele
 @MainActor
 final class CompanionServer {
     static let shared = CompanionServer()
-    static let port: UInt16 = 48624
+    static let port: UInt16 = 48624 + BuildVariant.portOffset
     static let relayStatusChanged = Notification.Name("LiftoffRelayStatusChanged")
 
     private(set) var isRelayLive = false
 
     private var listener: NWListener?
-    static let wsPort: UInt16 = 48625
+    static let wsPort: UInt16 = 48625 + BuildVariant.portOffset
     private var wsListener: NWListener?
     private var relayTask: URLSessionWebSocketTask?
     private var relaySession: URLSession?
