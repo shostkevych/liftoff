@@ -17,7 +17,7 @@ struct PopupBackdrop: View {
 }
 
 /// Shared dark-glass card chrome for overlay popups.
-private struct PopupCard: ViewModifier {
+struct PopupCard: ViewModifier {
     var width: CGFloat
     var cornerRadius: CGFloat = 12
 
@@ -39,16 +39,22 @@ private struct PopupCard: ViewModifier {
     }
 }
 
-private struct PopupHeader: View {
+struct PopupHeader: View {
     let title: String
-    let icon: String
+    let icon: String?
     let dismiss: () -> Void
 
     var body: some View {
         HStack {
-            Label(title, systemImage: icon)
-                .font(.system(size: 12.5, weight: .semibold))
-                .foregroundStyle(.secondary)
+            if let icon {
+                Label(title, systemImage: icon)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(title)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
             Spacer()
             Button(action: dismiss) {
                 Image(systemName: "xmark")
@@ -470,6 +476,7 @@ struct ProjectTagPopup: View {
     @Environment(AppStore.self) private var store
     let folder: URL
     let dismiss: () -> Void
+    var resolve: ((ProjectTag) -> Bool)? = nil
 
     @State private var label: String = ""
     @State private var colorHex: String = TagPalette.first
@@ -543,7 +550,7 @@ struct ProjectTagPopup: View {
         .padding(26)
         .modifier(PopupCard(width: 520))
         .onAppear {
-            if let existing = store.tag(forPath: folder.path) {
+            if resolve == nil, let existing = store.tag(forPath: folder.path) {
                 label = existing.label
                 colorHex = existing.colorHex
                 isEditing = true
@@ -565,15 +572,22 @@ struct ProjectTagPopup: View {
     }
 
     private func save() {
-        store.resolveTagPrompt(
-            ProjectTag(label: label.trimmingCharacters(in: .whitespacesAndNewlines), colorHex: colorHex),
-            for: folder)
-        dismiss()
+        finish(ProjectTag(
+            label: label.trimmingCharacters(in: .whitespacesAndNewlines),
+            colorHex: colorHex))
     }
 
     /// Skipping stores a color-only tag so this folder isn't asked again.
     private func skip() {
-        store.resolveTagPrompt(ProjectTag(label: "", colorHex: colorHex), for: folder)
+        finish(ProjectTag(label: "", colorHex: colorHex))
+    }
+
+    private func finish(_ tag: ProjectTag) {
+        if let resolve {
+            guard resolve(tag) else { return }
+        } else {
+            store.resolveTagPrompt(tag, for: folder)
+        }
         dismiss()
     }
 }

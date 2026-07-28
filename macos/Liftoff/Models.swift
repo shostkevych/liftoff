@@ -1065,6 +1065,17 @@ final class AppStore {
         return panel.runModal() == .OK ? panel.url : nil
     }
 
+    func pickProjectParentFolder(named projectName: String) -> URL? {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Create Here"
+        panel.message = "Choose where to create “\(projectName)”."
+        return panel.runModal() == .OK ? panel.url : nil
+    }
+
     // MARK: Placeholder picker panes (Cmd+O)
 
     var placeholderPanes: [UUID] = []
