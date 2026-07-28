@@ -82,6 +82,7 @@ private struct RootView: View {
         CompanionServer.shared.start()
         WebServer.shared.start()
         Updater.shared.start()
+        Task { await AnalyticsReporter.shared.start() }
         StatusBarController.shared.install()
         FocusTrackingTerminalView.installKeyboardShortcuts()
         InstantTerminalController.shared.registerHotKey()

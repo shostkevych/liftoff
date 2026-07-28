@@ -188,6 +188,7 @@ final class TerminalSession: Identifiable {
     init(title: String, workingDirectory: URL) {
         self.title = title
         self.workingDirectory = workingDirectory
+        AnalyticsReporter.shared.recordTerminalOpened()
     }
 }
 
