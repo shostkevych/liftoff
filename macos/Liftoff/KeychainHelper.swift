@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 enum KeychainHelper {
-    private static let service = "com.shostkevych.liftoff"
+    private static let service = BuildVariant.keychainService
 
     static func store(key: String, value: String) -> Bool {
         guard let data = value.data(using: .utf8) else { return false }

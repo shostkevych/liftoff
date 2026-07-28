@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 const GITHUB = "https://github.com/shostkevych/liftoff";
+const RELEASES = `${GITHUB}/releases`;
 
 export default function Nav() {
   const [scrolled, setScrolled] = useState(false);
@@ -34,7 +35,7 @@ export default function Nav() {
             </svg>
             <span className="hide-sm">GitHub</span>
           </a>
-          <a href={GITHUB} className="btn btn-primary" target="_blank" rel="noreferrer">
+          <a href={RELEASES} className="btn btn-primary" target="_blank" rel="noreferrer">
             Download
           </a>
         </div>

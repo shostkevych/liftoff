@@ -7,7 +7,7 @@ import Network
 @MainActor
 final class NotificationServer {
     static let shared = NotificationServer()
-    static let port: UInt16 = 48623
+    static let port: UInt16 = 48623 + BuildVariant.portOffset
 
     private var listener: NWListener?
 
@@ -61,21 +61,20 @@ final class NotificationServer {
         let message = items.first { $0.name == "message" }?.value ?? "Needs your attention"
         let source = items.first { $0.name == "source" }?.value
 
-        // opencode notifications come from our own plugin (source=opencode) and
-        // never from another agent importing Claude's config, so they're always
-        // genuine — skip the cross-agent suppression below.
+        // Codex and opencode notifications come from Liftoff's own integrations,
+        // so they're always genuine — skip the cross-agent suppression below.
         // Other agents (e.g. grok) import Claude's settings.json and run this
         // same hook — grok fires it on every turn/tool call, which spams. The
         // hook title is the project folder name; if that project's foreground
         // agent is a non-Claude CLI, drop the notification.
-        guard source == "opencode" || !isNonClaudeAgentProject(named: title) else { return }
+        guard source == "opencode"
+                || source == "codex"
+                || !isNonClaudeAgentProject(named: title) else { return }
 
         NotificationManager.shared.post(title: title, message: message)
     }
 
-    /// Apply a Claude prompt as the matching session's tab title. Only Claude
-    /// installs the UserPromptSubmit hook, but other agents can import Claude's
-    /// settings.json — so restrict to sessions actually running Claude.
+    /// Apply an agent prompt as the matching session's tab title.
     @MainActor
     private static func setWorkTitle(sessionID: UUID, prompt: String) {
         // First non-empty line, whitespace-trimmed, capped for the tab.
@@ -89,7 +88,7 @@ final class NotificationServer {
         for store in AppStore.allStores {
             for project in store.projects {
                 if let session = project.terminals.first(where: { $0.id == sessionID }),
-                   session.runningAgent == .claude {
+                   session.runningAgent == .claude || session.runningAgent == .codex {
                     session.title = title
                     return
                 }

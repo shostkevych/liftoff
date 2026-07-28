@@ -4,6 +4,21 @@ Newest release on top. Each `## <version>` section is shown in-app: in the
 "What's New" popup after an update, and (via release.sh) in Sparkle's update
 prompt.
 
+## 1.15
+
+- Added a live memory readout showing how much RAM every terminal is using, with a per-tab breakdown
+- The menu bar now lists each terminal with its memory, jumps straight to it, and can kill it after confirmation
+
+## 1.14
+
+- Added guided project creation with naming, color tags, destination selection, and immediate opening in Liftoff
+- Codex notifications now match Claude Code with native completion and permission-request alerts
+
+## 1.13
+
+- Added privacy-first anonymous analytics for active installations, version adoption, and aggregate terminal-open counts
+- Analytics never collects accounts, names, device details, project paths, commands, prompts, terminal content, or crash data
+
 ## 1.12
 
 - Fixed rich terminal apps such as OpenCode appearing blank after switching projects; restored content now redraws as one synchronized frame

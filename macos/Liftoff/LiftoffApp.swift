@@ -82,7 +82,11 @@ private struct RootView: View {
         CompanionServer.shared.start()
         WebServer.shared.start()
         Updater.shared.start()
+        Task { await AnalyticsReporter.shared.start() }
         StatusBarController.shared.install()
+        // Sampled app-wide (overlay pill + status-bar menu both read it), so it
+        // starts here rather than with whichever view happens to appear first.
+        MemoryMonitor.shared.start()
         FocusTrackingTerminalView.installKeyboardShortcuts()
         InstantTerminalController.shared.registerHotKey()
         if let store = AppStore.shared {

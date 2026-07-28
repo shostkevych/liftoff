@@ -1,6 +1,6 @@
 import Foundation
 
-/// All app settings live in ~/.liftoff/settings.json.
+/// App settings live in the current build variant's settings directory.
 /// Sensitive values (webPassword, cerebrasApiKey) are stored in the system Keychain.
 enum SettingsStore {
     struct Settings: Codable {
@@ -72,7 +72,8 @@ enum SettingsStore {
         }
     }
 
-    static let directory = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".liftoff")
+    static let directory = URL(fileURLWithPath: NSHomeDirectory())
+        .appendingPathComponent(BuildVariant.settingsDirectoryName)
     static let file = directory.appendingPathComponent("settings.json")
 
     static func load() -> Settings {

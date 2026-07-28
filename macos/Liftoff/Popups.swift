@@ -17,7 +17,7 @@ struct PopupBackdrop: View {
 }
 
 /// Shared dark-glass card chrome for overlay popups.
-private struct PopupCard: ViewModifier {
+struct PopupCard: ViewModifier {
     var width: CGFloat
     var cornerRadius: CGFloat = 12
 
@@ -39,16 +39,22 @@ private struct PopupCard: ViewModifier {
     }
 }
 
-private struct PopupHeader: View {
+struct PopupHeader: View {
     let title: String
-    let icon: String
+    let icon: String?
     let dismiss: () -> Void
 
     var body: some View {
         HStack {
-            Label(title, systemImage: icon)
-                .font(.system(size: 12.5, weight: .semibold))
-                .foregroundStyle(.secondary)
+            if let icon {
+                Label(title, systemImage: icon)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(title)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
             Spacer()
             Button(action: dismiss) {
                 Image(systemName: "xmark")
@@ -470,6 +476,7 @@ struct ProjectTagPopup: View {
     @Environment(AppStore.self) private var store
     let folder: URL
     let dismiss: () -> Void
+    var resolve: ((ProjectTag) -> Bool)? = nil
 
     @State private var label: String = ""
     @State private var colorHex: String = TagPalette.first
@@ -543,7 +550,7 @@ struct ProjectTagPopup: View {
         .padding(26)
         .modifier(PopupCard(width: 520))
         .onAppear {
-            if let existing = store.tag(forPath: folder.path) {
+            if resolve == nil, let existing = store.tag(forPath: folder.path) {
                 label = existing.label
                 colorHex = existing.colorHex
                 isEditing = true
@@ -565,15 +572,22 @@ struct ProjectTagPopup: View {
     }
 
     private func save() {
-        store.resolveTagPrompt(
-            ProjectTag(label: label.trimmingCharacters(in: .whitespacesAndNewlines), colorHex: colorHex),
-            for: folder)
-        dismiss()
+        finish(ProjectTag(
+            label: label.trimmingCharacters(in: .whitespacesAndNewlines),
+            colorHex: colorHex))
     }
 
     /// Skipping stores a color-only tag so this folder isn't asked again.
     private func skip() {
-        store.resolveTagPrompt(ProjectTag(label: "", colorHex: colorHex), for: folder)
+        finish(ProjectTag(label: "", colorHex: colorHex))
+    }
+
+    private func finish(_ tag: ProjectTag) {
+        if let resolve {
+            guard resolve(tag) else { return }
+        } else {
+            store.resolveTagPrompt(tag, for: folder)
+        }
         dismiss()
     }
 }
@@ -640,7 +654,7 @@ private struct FlowLayout: Layout {
     }
 }
 
-/// Shown the first time an agent session (Claude Code or opencode) is detected
+/// Shown the first time a supported agent session is detected
 /// and Liftoff's notification hook isn't installed yet: offers to wire it into
 /// the agent's config folder.
 struct HookSetupPopup: View {
@@ -650,14 +664,33 @@ struct HookSetupPopup: View {
 
     /// The human-readable agent name for copy.
     private var agentName: String {
-        agent == .opencode ? "opencode" : "Claude Code"
+        switch agent {
+        case .codex: "Codex"
+        case .opencode: "opencode"
+        default: "Claude Code"
+        }
     }
 
     /// The config file the hook lands in, with the home folder abbreviated.
     private var settingsPath: String {
-        let suffix = agent == .opencode ? "plugins/liftoff-notify.js" : "settings.json"
+        let suffix = switch agent {
+        case .codex: "hooks.json"
+        case .opencode: "plugin/liftoff-notify.js"
+        default: "settings.json"
+        }
         return (configDir.appendingPathComponent(suffix).path as NSString)
             .abbreviatingWithTildeInPath
+    }
+
+    private var setupDescription: String {
+        switch agent {
+        case .codex:
+            "Adds PermissionRequest + Stop hooks to \(settingsPath); approve them once with /hooks"
+        case .opencode:
+            "Adds a notify plugin to \(settingsPath)"
+        default:
+            "Adds Notification + Stop hooks to \(settingsPath)"
+        }
     }
 
     var body: some View {
@@ -672,9 +705,7 @@ struct HookSetupPopup: View {
             VStack(alignment: .leading, spacing: 8) {
                 hookRow(icon: "bell", text: "Native banner per project when \(agentName) pauses for input")
                 hookRow(icon: "checkmark.circle", text: "A ping when a response finishes")
-                hookRow(icon: "gearshape", text: agent == .opencode
-                        ? "Adds a notify plugin to \(settingsPath)"
-                        : "Adds Notification + Stop hooks to \(settingsPath)")
+                hookRow(icon: "gearshape", text: setupDescription)
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -740,7 +771,7 @@ struct HelpPopup: View {
         ]),
         ("AI", [
             ("⌘F", "Summarize selected text with Gemma"),
-            ("Notifications", "Claude Code pushes per project via hooks"),
+            ("Notifications", "Claude Code, Codex, and opencode push per project via hooks"),
         ]),
     ]
 

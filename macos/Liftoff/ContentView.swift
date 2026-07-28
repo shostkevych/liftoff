@@ -155,6 +155,13 @@ struct ContentView: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
         }
+        .overlay(alignment: .bottomTrailing) {
+            // Only meaningful once shells are running, and it would sit on top of
+            // the project picker's artwork otherwise.
+            if !store.projects.isEmpty {
+                MemoryOverlay()
+            }
+        }
         .animation(.snappy(duration: 0.2), value: store.summaryState == nil)
         .animation(.smooth(duration: 0.3), value: store.welcomeVisible)
         .animation(.snappy(duration: 0.2), value: store.helpVisible)
@@ -850,9 +857,11 @@ struct NativeTab: View {
 
     @State private var hovering = false
 
+    private var cleanTitle: String { Self.cleanTitle(title) }
+
     /// Title with any leading agent status glyph (spinner dot / bullet /
     /// braille / star) stripped — activity is shown by the spinner instead.
-    private var cleanTitle: String {
+    static func cleanTitle(_ title: String) -> String {
         let bullets: Set<Character> = ["·", "•", "∙", "◦", "‣", "⁃", "∗", "*",
                                        "✶", "✳", "✱", "✻", "✽", "❋", "✦", "✧",
                                        "●", "◯", "◐", "◓", "◑", "◒"]
