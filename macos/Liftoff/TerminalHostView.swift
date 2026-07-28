@@ -433,35 +433,52 @@ final class FocusTrackingTerminalView: LocalProcessTerminalView {
         guard !keyMonitorInstalled else { return }
         keyMonitorInstalled = true
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            // ⌘⇧+1…9 quick-switches projects on the frontmost window. Handled
-            // before (and independent of) terminal focus so it works anywhere.
-            if handleProjectQuickSwitch(event) { return nil }
+            // Navigate the ⌘⇧ project picker before terminal focus handling so
+            // arrows and number keys work from anywhere in the app.
+            if handleProjectSwitcherKeyDown(event) { return nil }
             guard let terminal = event.window?.firstResponder as? FocusTrackingTerminalView else {
                 return event
             }
             return terminal.handleShortcut(event) ? nil : event
         }
-        // Holding ⌘⇧ shows the numbered project-switcher HUD; releasing hides it.
+        // Holding ⌘⇧ shows the picker; releasing either modifier confirms it.
         NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             if let store = AppStore.shared {
-                store.projectSwitcherVisible = flags == [.command, .shift] && !store.projects.isEmpty
+                let held = flags.contains([.command, .shift])
+                    && !flags.contains(.control) && !flags.contains(.option)
+                if held {
+                    if !store.projectSwitcherVisible { store.beginProjectSwitcher() }
+                } else if store.projectSwitcherVisible {
+                    store.commitProjectSwitcherSelection()
+                }
             }
             return event
         }
     }
 
-    /// ⌘⇧+1…9 → switch the frontmost window to that project. Returns true when
-    /// the event was a quick-switch chord (so the monitor swallows it).
+    /// While ⌘⇧ is held, arrows wrap through projects and 1…9 select a row.
+    /// The highlighted project is opened only when the chord is released.
     @MainActor
-    private static func handleProjectQuickSwitch(_ event: NSEvent) -> Bool {
-        guard event.modifierFlags.intersection(.deviceIndependentFlagsMask) == [.command, .shift]
-        else { return false }
+    private static func handleProjectSwitcherKeyDown(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard flags.contains([.command, .shift]),
+              !flags.contains(.control), !flags.contains(.option) else { return false }
+        guard let store = AppStore.shared else { return false }
+        switch event.keyCode {
+        case 126: // Up
+            store.moveProjectSwitcherSelection(by: -1)
+            return true
+        case 125: // Down
+            store.moveProjectSwitcherSelection(by: 1)
+            return true
+        default:
+            break
+        }
         // Top-row digit keycodes 1…9 (0x12, 0x13, 0x14, 0x15, 0x17, 0x16, 0x1A, 0x1C, 0x19).
         let digits: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28, 25]
-        guard let index = digits.firstIndex(of: event.keyCode), let store = AppStore.shared
-        else { return false }
-        store.quickSwitch(toIndex: index)
+        guard let index = digits.firstIndex(of: event.keyCode) else { return false }
+        store.highlightProjectSwitcher(at: index)
         return true
     }
 

@@ -20,6 +20,18 @@ struct ContentView: View {
         .background(WindowChromeRemover())
         .background(WindowCapture { store.hostWindow = $0 })
         .ignoresSafeArea(.container, edges: .top)
+        .overlay(alignment: .topTrailing) {
+            if let hint = store.visibleHint {
+                HintToast(
+                    hint: hint,
+                    dismiss: { store.dismissHint() },
+                    disable: { store.setHintsEnabled(false) }
+                )
+                .padding(.top, 14)
+                .padding(.trailing, 14)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+        }
         .overlay(alignment: .top) {
             if let state = store.summaryState {
                 ZStack(alignment: .top) {
@@ -44,7 +56,13 @@ struct ContentView: View {
             if store.helpVisible {
                 ZStack {
                     PopupBackdrop { store.helpVisible = false }
-                    HelpPopup { store.helpVisible = false }
+                    HelpPopup(
+                        dismiss: { store.helpVisible = false },
+                        showNextHint: {
+                            store.helpVisible = false
+                            DispatchQueue.main.async { store.showNextHint() }
+                        }
+                    )
                         .transition(.opacity.combined(with: .scale(scale: 0.97)))
                 }
             }
@@ -163,6 +181,7 @@ struct ContentView: View {
             }
         }
         .animation(.snappy(duration: 0.2), value: store.summaryState == nil)
+        .animation(.snappy(duration: 0.22), value: store.visibleHint?.id)
         .animation(.smooth(duration: 0.3), value: store.welcomeVisible)
         .animation(.snappy(duration: 0.2), value: store.helpVisible)
         .animation(.snappy(duration: 0.2), value: store.airConnectVisible)
@@ -283,31 +302,132 @@ struct ProjectSidebar: View {
     }
 }
 
+private struct SidebarGitContext: Sendable {
+    let repository: String
+    let worktree: String
+    let branch: String
+
+    static func load(for folder: URL) async -> SidebarGitContext? {
+        await Task.detached(priority: .utility) {
+            func git(_ arguments: [String]) -> String? {
+                let process = Process()
+                let output = Pipe()
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+                process.arguments = ["-C", folder.path] + arguments
+                process.standardOutput = output
+                process.standardError = Pipe()
+                guard (try? process.run()) != nil else { return nil }
+                process.waitUntilExit()
+                guard process.terminationStatus == 0 else { return nil }
+                let data = output.fileHandleForReading.readDataToEndOfFile()
+                let value = String(decoding: data, as: UTF8.self)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                return value.isEmpty ? nil : value
+            }
+
+            guard let topLevel = git(["rev-parse", "--show-toplevel"]) else { return nil }
+            let worktree = URL(fileURLWithPath: topLevel).lastPathComponent
+            let commonGitDir = git(["rev-parse", "--path-format=absolute", "--git-common-dir"])
+            let repository = commonGitDir
+                .map { URL(fileURLWithPath: $0).deletingLastPathComponent().lastPathComponent }
+                ?? worktree
+            let branch = git(["branch", "--show-current"])
+                ?? git(["rev-parse", "--short", "HEAD"])
+                ?? "detached"
+            return SidebarGitContext(repository: repository, worktree: worktree, branch: branch)
+        }.value
+    }
+}
+
 /// One project row in the sidebar.
 struct ProjectSidebarRow: View {
     @Environment(AppStore.self) private var store
     let project: Project
 
     @State private var hovering = false
+    @State private var gitContext: SidebarGitContext?
 
     private var color: Color { store.tagColor(for: project.folder) ?? .secondary }
     private var isSelected: Bool { store.selectedProjectIDs.contains(project.id) }
+    private var isActive: Bool { store.activeProjectID == project.id }
     private var isBusy: Bool { project.terminals.contains { $0.isBusy } }
     private var isPinned: Bool { store.isPinned(project) }
     private var tabCount: Int { project.terminals.count }
 
     var body: some View {
+        VStack(spacing: 2) {
+            projectHeader
+            if isActive && !project.terminals.isEmpty {
+                VStack(spacing: 1) {
+                    ForEach(project.terminals) { terminal in
+                        sidebarTab(terminal)
+                    }
+                }
+                .padding(.leading, 14)
+                .padding(.trailing, 4)
+                .padding(.bottom, 4)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .padding(isActive ? 6 : 0)
+        .background {
+            if isActive {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(color.opacity(0.14))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(.black.opacity(0.18))
+                    )
+                    .shadow(color: color.opacity(0.12), radius: 14, y: 5)
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(isActive ? color.opacity(0.28) : .clear, lineWidth: 1)
+        )
+        .animation(.snappy(duration: 0.18), value: isActive)
+        .task(id: isActive) {
+            if isActive, gitContext == nil {
+                gitContext = await SidebarGitContext.load(for: project.folder)
+            }
+        }
+    }
+
+    private var projectHeader: some View {
         HStack(spacing: 8) {
             RoundedRectangle(cornerRadius: 1.5).fill(color).frame(width: 3, height: 30)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(project.name)
+            VStack(alignment: .leading, spacing: isActive ? 2 : 1) {
+                Text(gitContext?.worktree ?? project.name)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(isSelected ? .primary : .secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                Text("\(tabCount) tab\(tabCount == 1 ? "" : "s") open")
+                if isActive {
+                    if let branch = gitContext?.branch {
+                        Text(branch)
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    HStack(spacing: 4) {
+                        if let repository = gitContext?.repository {
+                            Text(repository)
+                            Text("·")
+                        }
+                        Text("\(tabCount) tab\(tabCount == 1 ? "" : "s")")
+                    }
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
+                } else {
+                    Text("\(tabCount) tab\(tabCount == 1 ? "" : "s") open")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             // Trailing cluster, vertically centered: tag, then busy/pin.
@@ -321,7 +441,8 @@ struct ProjectSidebarRow: View {
                     .background(Capsule().fill(color.opacity(0.45)))
                     .layoutPriority(1)
             }
-            if isBusy {
+            // Expanded projects surface activity on each nested tab.
+            if isBusy && !isActive {
                 ProgressView()
                     .progressViewStyle(.circular)
                     .controlSize(.small)
@@ -337,14 +458,22 @@ struct ProjectSidebarRow: View {
                     .frame(width: 16, height: 16)
                     .help("Pinned — reopens on launch")
             }
+            if isActive {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 14)
+            }
         }
         .padding(.horizontal, 8)
-        .frame(height: 42)
+        .frame(height: isActive ? 62 : 42)
         .background(
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(isSelected
+                .fill(isActive
+                      ? AnyShapeStyle(.clear)
+                      : (isSelected
                       ? AnyShapeStyle(.quaternary)
-                      : (hovering ? AnyShapeStyle(.quinary) : AnyShapeStyle(.clear)))
+                      : (hovering ? AnyShapeStyle(.quinary) : AnyShapeStyle(.clear))))
         )
         .contentShape(Rectangle())
         .onTapGesture {
@@ -371,6 +500,107 @@ struct ProjectSidebarRow: View {
                 store.closeProject(project)
             }
         }
+    }
+
+    private func sidebarTab(_ terminal: TerminalSession) -> some View {
+        SidebarTerminalRow(
+            terminal: terminal,
+            accent: color,
+            isActive: terminal.id == project.activeTerminalID,
+            select: {
+                project.select(terminal)
+                store.activeProjectID = project.id
+                store.activate()
+            },
+            close: {
+                store.closeTerminal(terminal, in: project)
+            }
+        )
+        .contextMenu {
+            Button("Rename Tab…") {
+                store.activeProjectID = project.id
+                store.renamingTerminal = terminal
+            }
+            if terminal.customTitle != nil {
+                Button("Use Automatic Title") { terminal.customTitle = nil }
+            }
+            Divider()
+            Button("Close Terminal") {
+                store.closeTerminal(terminal, in: project)
+            }
+        }
+    }
+}
+
+private struct SidebarTerminalRow: View {
+    let terminal: TerminalSession
+    let accent: Color
+    let isActive: Bool
+    let select: () -> Void
+    let close: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Group {
+                if terminal.isBusy {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .controlSize(.small)
+                        .scaleEffect(0.52)
+                        .tint(terminal.runningAgent?.color ?? .secondary)
+                } else {
+                    Image(systemName: "terminal")
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(isActive ? .primary : .tertiary)
+                }
+            }
+            .frame(width: 14)
+
+            if let agent = terminal.runningAgent {
+                Text(agent.label)
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(agent.color)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1.5)
+                    .background(Capsule().fill(agent.color.opacity(0.18)))
+                    .overlay(Capsule().strokeBorder(agent.color.opacity(0.35), lineWidth: 0.5))
+                    .fixedSize()
+            }
+
+            Text(NativeTab.cleanTitle(terminal.displayTitle))
+                .font(.system(size: 11.5, weight: isActive ? .medium : .regular))
+                .foregroundStyle(isActive ? .primary : .secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 2)
+
+            if hovering {
+                Button(action: close) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16, height: 16)
+                }
+                .buttonStyle(.borderless)
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(height: 30)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(isActive
+                      ? AnyShapeStyle(accent.opacity(0.16))
+                      : (hovering ? AnyShapeStyle(.white.opacity(0.05)) : AnyShapeStyle(.clear)))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(isActive ? accent.opacity(0.22) : .clear, lineWidth: 0.5)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture(perform: select)
+        .onHover { hovering = $0 }
     }
 }
 
@@ -732,9 +962,8 @@ struct ProjectPane: View {
     }
 }
 
-/// Cmd+Shift HUD: a centered, numbered list of open projects. Appears while
-/// ⌘⇧ is held; ⌘⇧+N (1…9) switches to the Nth project. Non-interactive — it
-/// floats over the terminals without stealing keyboard focus.
+/// Cmd+Shift HUD: arrows or 1…9 highlight a project while the chord is held;
+/// releasing the modifiers confirms it without stealing terminal focus.
 struct ProjectSwitcherOverlay: View {
     @Environment(AppStore.self) private var store
 
@@ -755,7 +984,7 @@ struct ProjectSwitcherOverlay: View {
                 }
             }
 
-            Text("Hold ⌘⇧ · press a number")
+            Text("↑↓ choose · release to open · 1–9 select")
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
         }
@@ -779,7 +1008,7 @@ struct ProjectSwitcherOverlay: View {
 
     private func row(number: Int, project: Project) -> some View {
         let color = store.tagColor(for: project.folder) ?? .secondary
-        let isSelected = store.selectedProjectIDs.contains(project.id)
+        let isSelected = store.projectSwitcherSelectionIndex == number - 1
         let tabCount = project.terminals.count
         return HStack(spacing: 10) {
             Text("\(number)")

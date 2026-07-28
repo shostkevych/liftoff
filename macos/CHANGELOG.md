@@ -4,6 +4,13 @@ Newest release on top. Each `## <version>` section is shown in-app: in the
 "What's New" popup after an update, and (via release.sh) in Sparkle's update
 prompt.
 
+## 1.16
+
+- Added periodic glass-style feature hints with 15 tips covering shortcuts, terminal workflows, AI summaries, and Liftoff Air
+- Hints can be dismissed, disabled permanently, or opened manually from Help
+- The CMD + SHIFT project switcher now supports Up/Down navigation and confirms the highlighted project on release
+- The active sidebar project now expands into a project-color-tinted glass card with repository, worktree, branch, agent badges, titles, activity, and quick tab controls
+
 ## 1.15
 
 - Added a live memory readout showing how much RAM every terminal is using, with a per-tab breakdown

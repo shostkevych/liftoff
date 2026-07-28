@@ -316,6 +316,7 @@ final class AppStore {
     /// Entries drop automatically when a window's store deallocates.
     private static let registry = NSHashTable<AppStore>.weakObjects()
     static var allStores: [AppStore] { registry.allObjects }
+    private static var hintScheduleTask: Task<Void, Never>?
 
     /// Mark this window's store as the frontmost one. Window-targeted actions
     /// (menu commands, remote "open project") act on the most recently activated.
@@ -338,6 +339,7 @@ final class AppStore {
             TerminalHostView.dispose(entry.session)
         }
         closedTerminals.removeAll()
+        hintDismissTask?.cancel()
         projects.removeAll()
         bumpStructure()
         if Self.shared === self { Self.shared = Self.allStores.first { $0 !== self } }
@@ -357,6 +359,10 @@ final class AppStore {
     /// Cmd+Shift HUD: numbered project quick-switch overlay, visible while the
     /// ⌘⇧ chord is held (driven by the key monitor's flagsChanged handler).
     var projectSwitcherVisible = false
+    /// Highlighted HUD row. Arrow keys move it; releasing ⌘⇧ confirms it.
+    var projectSwitcherSelectionIndex: Int?
+    /// Prevent a modifier tap from collapsing an existing multi-project layout.
+    private var projectSwitcherSelectionChanged = false
     /// Last opened project folders, most recent first (persisted in ~/.liftoff).
     var recentProjectPaths: [String] = []
     /// User-assigned tags (label + color) per project path (persisted in ~/.liftoff).
@@ -375,6 +381,10 @@ final class AppStore {
     var pinnedPaths: Set<String> = []
     /// Prevent the Mac from idle-sleeping while Liftoff runs (persisted).
     var keepAwake: Bool = true
+    /// Periodic feature hints can be disabled permanently from a hint or Help.
+    var hintsEnabled: Bool = true
+    /// Index of the next hint so the catalogue rotates across launches.
+    var nextHintIndex: Int = 0
     /// The config dir currently being prompted about (nil = overlay hidden).
     var hookSetupDir: URL?
     /// Which agent the pending hook prompt is for (drives install + popup copy).
@@ -428,6 +438,8 @@ final class AppStore {
         pinnedPaths = Set(settings.pinnedProjectPaths)
         paneLayout.sidebarWidth = settings.sidebarWidth
         keepAwake = settings.keepAwake
+        hintsEnabled = settings.hintsEnabled
+        nextHintIndex = settings.nextHintIndex
         cerebrasApiKey = SettingsStore.cerebrasApiKey
         TerminalHostView.fontSize = settings.terminalFontSize
         Self.shared = self
@@ -458,7 +470,9 @@ final class AppStore {
             sidebarWidth: paneLayout.sidebarWidth,
             // Carry the pairing token through — omitting it wiped it on every
             // save, silently rotating the token and breaking phone pairing.
-            companionToken: SettingsStore.load().companionToken
+            companionToken: SettingsStore.load().companionToken,
+            hintsEnabled: hintsEnabled,
+            nextHintIndex: nextHintIndex
         )
         // Save secrets to Keychain separately
         SettingsStore.webPassword = webPassword
@@ -671,6 +685,9 @@ final class AppStore {
     /// Cancellable summary request; cancelled on dismiss and on re-entry so a
     /// stale in-flight request can't overwrite a newer one. Ignored by observation.
     @ObservationIgnored private var summarizeTask: Task<Void, Never>?
+    /// Small top-right feature hint currently being shown.
+    var visibleHint: LiftoffHint?
+    @ObservationIgnored private var hintDismissTask: Task<Void, Never>?
     /// Cmd+H: hotkeys & features overlay.
     var helpVisible = false
     /// Air → Connect: QR-code pairing overlay for the iOS companion.
@@ -690,6 +707,62 @@ final class AppStore {
     /// Cmd+O / sidebar +: open-project picker shown as a modal (only once a
     /// project is already open; the empty state shows the full-screen picker).
     var newProjectVisible = false
+
+    /// Start one app-wide hint rotation: first after a minute, then every 30 minutes.
+    func startHintSchedule() {
+        guard Self.hintScheduleTask == nil else { return }
+        Self.hintScheduleTask = Task { @MainActor in
+            var delay: UInt64 = 60_000_000_000
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: delay)
+                guard !Task.isCancelled else { break }
+                let didShow = AppStore.shared?.showNextHint(automatically: true) ?? false
+                delay = didShow ? 1_800_000_000_000 : 300_000_000_000
+            }
+        }
+    }
+
+    /// Advance through the catalogue. Manual requests work even when periodic hints are off.
+    @discardableResult
+    func showNextHint(automatically: Bool = false) -> Bool {
+        if automatically {
+            guard hintsEnabled, canAutomaticallyShowHint else { return false }
+        }
+        guard !LiftoffHint.all.isEmpty else { return false }
+
+        let index = nextHintIndex % LiftoffHint.all.count
+        let hint = LiftoffHint.all[index]
+        nextHintIndex = (index + 1) % LiftoffHint.all.count
+        visibleHint = hint
+        persist()
+
+        hintDismissTask?.cancel()
+        hintDismissTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 14_000_000_000)
+            guard !Task.isCancelled, self?.visibleHint?.id == hint.id else { return }
+            self?.visibleHint = nil
+        }
+        return true
+    }
+
+    func dismissHint() {
+        hintDismissTask?.cancel()
+        visibleHint = nil
+    }
+
+    func setHintsEnabled(_ enabled: Bool) {
+        hintsEnabled = enabled
+        if !enabled { dismissHint() }
+        persist()
+    }
+
+    private var canAutomaticallyShowHint: Bool {
+        NSApp.isActive && hostWindow?.isVisible != false && visibleHint == nil
+            && summaryState == nil && renamingTerminal == nil && !helpVisible
+            && !airConnectVisible && !webPasswordVisible && !cerebrasKeyVisible
+            && tagPromptFolder == nil && hookSetupDir == nil && !newProjectVisible
+            && !aboutVisible && !welcomeVisible && !whatsNewVisible
+    }
 
     /// Open the new-project picker. With no project yet, the full-screen picker
     /// is already on screen, so this is a no-op; otherwise show it as a modal.
@@ -847,11 +920,48 @@ final class AppStore {
         activate()
     }
 
-    /// Cmd+Shift+N quick-switch: show only the Nth open project (0-based index,
-    /// matching the HUD's 1…9 badges). Out-of-range indices are ignored.
+    /// Show only the Nth open project (0-based index). Out-of-range indices are ignored.
     func quickSwitch(toIndex index: Int) {
         guard projects.indices.contains(index) else { return }
         selectOnly(projects[index])
+    }
+
+    /// Begin a deferred project choice, initially highlighting the active project.
+    func beginProjectSwitcher() {
+        guard !projects.isEmpty else { return }
+        let visibleCount = min(projects.count, 9)
+        projectSwitcherSelectionIndex = projects.firstIndex { $0.id == activeProjectID }
+            .flatMap { $0 < visibleCount ? $0 : nil } ?? 0
+        projectSwitcherSelectionChanged = false
+        projectSwitcherVisible = true
+    }
+
+    /// Move the HUD highlight, wrapping within the visible project rows.
+    func moveProjectSwitcherSelection(by delta: Int) {
+        let count = min(projects.count, 9)
+        guard count > 0 else { return }
+        if !projectSwitcherVisible { beginProjectSwitcher() }
+        let current = projectSwitcherSelectionIndex ?? 0
+        projectSwitcherSelectionIndex = (current + delta + count) % count
+        projectSwitcherSelectionChanged = true
+    }
+
+    /// Highlight a numbered row without switching until the modifier chord is released.
+    func highlightProjectSwitcher(at index: Int) {
+        guard projects.indices.contains(index), index < 9 else { return }
+        projectSwitcherSelectionIndex = index
+        projectSwitcherSelectionChanged = true
+    }
+
+    /// Confirm the highlighted project when the user releases ⌘⇧.
+    func commitProjectSwitcherSelection() {
+        guard projectSwitcherVisible else { return }
+        let index = projectSwitcherSelectionIndex
+        let shouldSwitch = projectSwitcherSelectionChanged
+        projectSwitcherVisible = false
+        projectSwitcherSelectionIndex = nil
+        projectSwitcherSelectionChanged = false
+        if shouldSwitch, let index { quickSwitch(toIndex: index) }
     }
 
     /// Sidebar Cmd+click: add/remove this project from the shown set. Never
