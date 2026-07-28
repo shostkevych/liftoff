@@ -22,7 +22,7 @@ Watch and steer Claude Code, Codex, Gemini and more — from your Mac, your phon
 - **Agent-aware** — detects when Claude Code (or opencode) is working, waiting for input, or done; shows per-session status at a glance and native macOS notifications with project-aware titles.
 - **Liftoff Air (iOS companion)** — pair your iPhone by scanning a QR code and monitor or drive every session from your phone over the local network, with end-to-end encrypted traffic. [Get it on the App Store](https://apps.apple.com/us/app/liftoff-air/id6780915535).
 - **Web access** — a bundled browser client lets you check on sessions from any device.
-- **Native & fast** — SwiftUI + [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) with a Metal-accelerated renderer. No Electron, no telemetry, no account.
+- **Native & fast** — SwiftUI + [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) with a Metal-accelerated renderer. No Electron, no account, and no terminal data collection.
 - **Auto-updates** — signed and notarized releases delivered via [Sparkle](https://sparkle-project.org).
 
 ## Repository layout

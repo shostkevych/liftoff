@@ -43,3 +43,6 @@ CLAUDE.md
 
 # Private Liftoff relay server and deployment source
 relay/
+
+# Private analytics server and deployment source
+analytics/
