@@ -4,6 +4,11 @@ Newest release on top. Each `## <version>` section is shown in-app: in the
 "What's New" popup after an update, and (via release.sh) in Sparkle's update
 prompt.
 
+## 1.14
+
+- Added guided project creation with naming, color tags, destination selection, and immediate opening in Liftoff
+- Codex notifications now match Claude Code with native completion and permission-request alerts
+
 ## 1.13
 
 - Added privacy-first anonymous analytics for active installations, version adoption, and aggregate terminal-open counts
