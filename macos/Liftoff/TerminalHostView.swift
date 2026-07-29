@@ -165,6 +165,16 @@ final class FocusTrackingTerminalView: LocalProcessTerminalView {
         process.send(data: bytes[...])
     }
 
+    /// Insert a reusable prompt exactly like a paste, without touching the
+    /// system clipboard or sending Return.
+    func pastePrompt(_ prompt: String) {
+        if getTerminal().bracketedPasteMode {
+            send(txt: "\u{1b}[200~" + prompt + "\u{1b}[201~")
+        } else {
+            send(txt: prompt)
+        }
+    }
+
     /// Current visible buffer as plain text, for an attach-time snapshot.
     func snapshotData() -> Data {
         getTerminal().getBufferAsData()
@@ -457,8 +467,8 @@ final class FocusTrackingTerminalView: LocalProcessTerminalView {
         }
     }
 
-    /// While ⌘⇧ is held, arrows wrap through projects and 1…9 select a row.
-    /// The highlighted project is opened only when the chord is released.
+    /// While ⌘⇧ is held, arrows navigate quick-switcher tabs and rows.
+    /// The highlighted item is acted on only when the chord is released.
     @MainActor
     private static func handleProjectSwitcherKeyDown(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
@@ -471,6 +481,12 @@ final class FocusTrackingTerminalView: LocalProcessTerminalView {
             return true
         case 125: // Down
             store.moveProjectSwitcherSelection(by: 1)
+            return true
+        case 123: // Left
+            store.moveProjectSwitcherMode(by: -1)
+            return true
+        case 124: // Right
+            store.moveProjectSwitcherMode(by: 1)
             return true
         default:
             break

@@ -59,10 +59,8 @@ enum RemoteKind {
     var icon: String { self == .web ? "globe" : "iphone.gen3.radiowaves.left.and.right" }
 }
 
-/// A project's badge: an optional tag label and a palette color, assigned
-/// independently. The color belongs to the project, not to the tag — the same
-/// tag label can appear on projects of different colors. Stored per folder path
-/// in ~/.liftoff/settings.json — no hardcoded orgs.
+/// A project's stored tag assignment. Named tags are backed by the reusable
+/// global catalogue; a blank label is the untagged color-only state.
 struct ProjectTag: Codable, Equatable {
     var label: String
     var colorHex: String
@@ -70,6 +68,199 @@ struct ProjectTag: Codable, Equatable {
     var color: Color { Color(hex: colorHex) ?? .secondary }
     /// A blank label means the user picked a color but no tag text (or skipped).
     var hasLabel: Bool { !label.trimmingCharacters(in: .whitespaces).isEmpty }
+}
+
+/// Reusable global tag definition shared by every project.
+struct ProjectTagDefinition: Codable, Equatable, Identifiable {
+    var id: UUID
+    var label: String
+    var colorHex: String
+
+    init(id: UUID = UUID(), label: String, colorHex: String) {
+        self.id = id
+        self.label = label
+        self.colorHex = colorHex
+    }
+
+    var color: Color { Color(hex: colorHex) ?? .secondary }
+    var projectTag: ProjectTag { ProjectTag(label: label, colorHex: colorHex) }
+
+    enum CodingKeys: String, CodingKey { case id, label, colorHex }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        label = try c.decode(String.self, forKey: .label)
+        colorHex = try c.decode(String.self, forKey: .colorHex)
+    }
+}
+
+/// A locally stored reusable prompt. Its title is shown in the quick switcher;
+/// its prompt is pasted into the focused terminal without submitting it.
+struct PromptShortcut: Codable, Equatable, Identifiable {
+    var id: UUID = UUID()
+    var name: String
+    var prompt: String
+}
+
+enum SwitcherMode: String, Codable {
+    case projects
+    case shortcuts
+}
+
+/// Shared across app windows and Preferences so edits appear immediately.
+@MainActor
+@Observable
+final class PromptShortcutStore {
+    static let shared = PromptShortcutStore()
+    var shortcuts: [PromptShortcut]
+    @ObservationIgnored private var persistTask: Task<Void, Never>?
+
+    private init() {
+        shortcuts = SettingsStore.load().promptShortcuts
+    }
+
+    @discardableResult
+    func add() -> UUID {
+        let shortcut = PromptShortcut(name: "Untitled Shortcut", prompt: "")
+        shortcuts.append(shortcut)
+        persist()
+        return shortcut.id
+    }
+
+    func update(id: UUID, name: String? = nil, prompt: String? = nil) {
+        guard let index = shortcuts.firstIndex(where: { $0.id == id }) else { return }
+        if let name { shortcuts[index].name = name }
+        if let prompt { shortcuts[index].prompt = prompt }
+        persist()
+    }
+
+    func remove(id: UUID) {
+        shortcuts.removeAll { $0.id == id }
+        persist()
+    }
+
+    private func persist() {
+        for store in AppStore.allStores {
+            store.persistExternalSettingsChange()
+        }
+        persistTask?.cancel()
+        let snapshot = shortcuts
+        persistTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+            var settings = SettingsStore.load()
+            settings.promptShortcuts = snapshot
+            SettingsStore.save(settings)
+        }
+    }
+}
+
+/// Global reusable tag catalogue used by Settings and the project tag picker.
+/// Renaming or recoloring a definition updates every project using that tag.
+@MainActor
+@Observable
+final class ProjectTagSettingsStore {
+    static let shared = ProjectTagSettingsStore()
+    var tags: [ProjectTagDefinition] = []
+    @ObservationIgnored private var persistTask: Task<Void, Never>?
+
+    private init() {
+        refresh()
+    }
+
+    func refresh() {
+        tags = SettingsStore.load().projectTagDefinitions
+    }
+
+    @discardableResult
+    func add() -> UUID {
+        let definition = ProjectTagDefinition(
+            label: uniqueNewTagName(),
+            colorHex: TagPalette.first
+        )
+        tags.append(definition)
+        changed()
+        return definition.id
+    }
+
+    func updateLabel(_ label: String, for id: UUID) {
+        guard let index = tags.firstIndex(where: { $0.id == id }) else { return }
+        let old = tags[index].label
+        tags[index].label = label
+        changed(replacing: old, with: tags[index].projectTag)
+    }
+
+    func updateColor(_ colorHex: String, for id: UUID) {
+        guard let index = tags.firstIndex(where: { $0.id == id }) else { return }
+        let old = tags[index].label
+        tags[index].colorHex = colorHex
+        changed(replacing: old, with: tags[index].projectTag)
+    }
+
+    func remove(id: UUID) {
+        guard let definition = tags.first(where: { $0.id == id }) else { return }
+        tags.removeAll { $0.id == id }
+        changed(removing: definition.label)
+    }
+
+    func ensureDefinition(for tag: ProjectTag) {
+        let label = tag.label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !label.isEmpty else { return }
+        if let index = tags.firstIndex(where: {
+            $0.label.caseInsensitiveCompare(label) == .orderedSame
+        }) {
+            tags[index].label = label
+            tags[index].colorHex = tag.colorHex
+        } else {
+            tags.append(ProjectTagDefinition(label: label, colorHex: tag.colorHex))
+        }
+        changed()
+    }
+
+    private func changed(
+        replacing oldLabel: String? = nil,
+        with replacement: ProjectTag? = nil,
+        removing removedLabel: String? = nil
+    ) {
+        var assignments = SettingsStore.load().projectTags
+        if let live = AppStore.shared?.projectTags {
+            assignments.merge(live) { _, active in active }
+        }
+        if let oldLabel, let replacement {
+            for (path, tag) in assignments
+            where tag.label.caseInsensitiveCompare(oldLabel) == .orderedSame {
+                assignments[path] = replacement
+            }
+        }
+        if let removedLabel {
+            assignments = assignments.filter {
+                $0.value.label.caseInsensitiveCompare(removedLabel) != .orderedSame
+            }
+        }
+        for store in AppStore.allStores {
+            store.projectTags = assignments
+            store.persistExternalSettingsChange()
+        }
+        persistTask?.cancel()
+        let definitions = tags
+        persistTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+            var settings = SettingsStore.load()
+            settings.projectTagDefinitions = definitions
+            settings.projectTags = assignments
+            SettingsStore.save(settings)
+        }
+    }
+
+    private func uniqueNewTagName() -> String {
+        let existing = Set(tags.map { $0.label.lowercased() })
+        if !existing.contains("new tag") { return "New Tag" }
+        var index = 2
+        while existing.contains("new tag \(index)") { index += 1 }
+        return "New Tag \(index)"
+    }
 }
 
 /// Predefined color choices offered when tagging a project, grouped into hue
@@ -361,6 +552,10 @@ final class AppStore {
     var projectSwitcherVisible = false
     /// Highlighted HUD row. Arrow keys move it; releasing ⌘⇧ confirms it.
     var projectSwitcherSelectionIndex: Int?
+    /// Last selected shortcut row, retained between picker invocations.
+    var shortcutSwitcherSelectionIndex: Int?
+    /// Active quick-switcher tab. Left/right changes it and it is persisted.
+    var switcherMode: SwitcherMode = .projects
     /// Prevent a modifier tap from collapsing an existing multi-project layout.
     private var projectSwitcherSelectionChanged = false
     /// Last opened project folders, most recent first (persisted in ~/.liftoff).
@@ -440,6 +635,7 @@ final class AppStore {
         keepAwake = settings.keepAwake
         hintsEnabled = settings.hintsEnabled
         nextHintIndex = settings.nextHintIndex
+        switcherMode = settings.switcherMode
         cerebrasApiKey = SettingsStore.cerebrasApiKey
         TerminalHostView.fontSize = settings.terminalFontSize
         Self.shared = self
@@ -457,6 +653,8 @@ final class AppStore {
     /// disk write 0.5s after the last change. Each call snapshots the latest state
     /// so the final write always reflects the most recent values.
     private var persistTask: Task<Void, Never>?
+    func persistExternalSettingsChange() { persist() }
+
     private func persist() {
         persistTask?.cancel()
         let snapshot = SettingsStore.Settings(
@@ -472,7 +670,10 @@ final class AppStore {
             // save, silently rotating the token and breaking phone pairing.
             companionToken: SettingsStore.load().companionToken,
             hintsEnabled: hintsEnabled,
-            nextHintIndex: nextHintIndex
+            nextHintIndex: nextHintIndex,
+            promptShortcuts: PromptShortcutStore.shared.shortcuts,
+            projectTagDefinitions: ProjectTagSettingsStore.shared.tags,
+            switcherMode: switcherMode
         )
         // Save secrets to Keychain separately
         SettingsStore.webPassword = webPassword
@@ -577,19 +778,15 @@ final class AppStore {
 
     func setTag(_ tag: ProjectTag?, for folder: URL) {
         projectTags[folder.path] = tag
+        if let tag { ProjectTagSettingsStore.shared.ensureDefinition(for: tag) }
         persist()
     }
 
-    /// Distinct tag labels already in use, for quick reuse in the tag popup.
-    /// Deduped case-insensitively — a label is one tag regardless of project color.
-    var knownTags: [String] {
-        var seen = Set<String>()
-        var result: [String] = []
-        for tag in projectTags.values where tag.hasLabel {
-            let label = tag.label.trimmingCharacters(in: .whitespaces)
-            if seen.insert(label.lowercased()).inserted { result.append(label) }
-        }
-        return result.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    /// Reusable global tags shown in the project tag picker.
+    var knownTags: [ProjectTag] {
+        ProjectTagSettingsStore.shared.tags
+            .filter { !$0.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .map(\.projectTag)
     }
 
     // MARK: Tag prompt queue (shown when opening an untagged folder)
@@ -926,42 +1123,88 @@ final class AppStore {
         selectOnly(projects[index])
     }
 
-    /// Begin a deferred project choice, initially highlighting the active project.
+    /// Begin a deferred quick-switcher choice, restoring its last tab and row.
     func beginProjectSwitcher() {
-        guard !projects.isEmpty else { return }
-        let visibleCount = min(projects.count, 9)
-        projectSwitcherSelectionIndex = projects.firstIndex { $0.id == activeProjectID }
-            .flatMap { $0 < visibleCount ? $0 : nil } ?? 0
+        let shortcuts = PromptShortcutStore.shared.shortcuts
+        guard !projects.isEmpty || !shortcuts.isEmpty else { return }
+        if switcherMode == .projects, projects.isEmpty { switcherMode = .shortcuts }
+        if switcherMode == .shortcuts, shortcuts.isEmpty { switcherMode = .projects }
+
+        let projectCount = min(projects.count, 9)
+        if projectSwitcherSelectionIndex.map({ $0 >= projectCount }) ?? true {
+            projectSwitcherSelectionIndex = projects.firstIndex { $0.id == activeProjectID }
+                .flatMap { $0 < projectCount ? $0 : nil } ?? (projectCount > 0 ? 0 : nil)
+        }
+        let shortcutCount = min(shortcuts.count, 9)
+        if shortcutSwitcherSelectionIndex.map({ $0 >= shortcutCount }) ?? true {
+            shortcutSwitcherSelectionIndex = shortcutCount > 0 ? 0 : nil
+        }
         projectSwitcherSelectionChanged = false
         projectSwitcherVisible = true
     }
 
-    /// Move the HUD highlight, wrapping within the visible project rows.
+    /// Move the highlight, wrapping within the visible rows of the active tab.
     func moveProjectSwitcherSelection(by delta: Int) {
-        let count = min(projects.count, 9)
+        let count = switcherMode == .projects
+            ? min(projects.count, 9)
+            : min(PromptShortcutStore.shared.shortcuts.count, 9)
         guard count > 0 else { return }
         if !projectSwitcherVisible { beginProjectSwitcher() }
-        let current = projectSwitcherSelectionIndex ?? 0
-        projectSwitcherSelectionIndex = (current + delta + count) % count
+        if switcherMode == .projects {
+            let current = projectSwitcherSelectionIndex ?? 0
+            projectSwitcherSelectionIndex = (current + delta + count) % count
+        } else {
+            let current = shortcutSwitcherSelectionIndex ?? 0
+            shortcutSwitcherSelectionIndex = (current + delta + count) % count
+        }
         projectSwitcherSelectionChanged = true
     }
 
-    /// Highlight a numbered row without switching until the modifier chord is released.
+    /// Move between Projects and Shortcuts while retaining each tab's row.
+    func moveProjectSwitcherMode(by delta: Int) {
+        guard delta != 0 else { return }
+        let nextMode: SwitcherMode = delta < 0 ? .projects : .shortcuts
+        guard nextMode != switcherMode else { return }
+        switcherMode = nextMode
+        projectSwitcherSelectionChanged = true
+        persist()
+    }
+
+    /// Highlight a numbered row without acting until the modifier chord is released.
     func highlightProjectSwitcher(at index: Int) {
-        guard projects.indices.contains(index), index < 9 else { return }
-        projectSwitcherSelectionIndex = index
+        guard index < 9 else { return }
+        if switcherMode == .projects {
+            guard projects.indices.contains(index) else { return }
+            projectSwitcherSelectionIndex = index
+        } else {
+            guard PromptShortcutStore.shared.shortcuts.indices.contains(index) else { return }
+            shortcutSwitcherSelectionIndex = index
+        }
         projectSwitcherSelectionChanged = true
     }
 
-    /// Confirm the highlighted project when the user releases ⌘⇧.
+    /// Confirm the highlighted project or paste the shortcut when ⌘⇧ is released.
     func commitProjectSwitcherSelection() {
         guard projectSwitcherVisible else { return }
-        let index = projectSwitcherSelectionIndex
-        let shouldSwitch = projectSwitcherSelectionChanged
+        let shouldCommit = projectSwitcherSelectionChanged
         projectSwitcherVisible = false
-        projectSwitcherSelectionIndex = nil
         projectSwitcherSelectionChanged = false
-        if shouldSwitch, let index { quickSwitch(toIndex: index) }
+        guard shouldCommit else { return }
+        if switcherMode == .projects, let index = projectSwitcherSelectionIndex {
+            quickSwitch(toIndex: index)
+        } else if switcherMode == .shortcuts,
+                  let index = shortcutSwitcherSelectionIndex,
+                  PromptShortcutStore.shared.shortcuts.indices.contains(index) {
+            pastePromptShortcut(PromptShortcutStore.shared.shortcuts[index].prompt)
+        }
+    }
+
+    private func pastePromptShortcut(_ prompt: String) {
+        guard !prompt.isEmpty,
+              let terminalID = activeProject?.activeTerminalID,
+              let view = TerminalHostView.cache[terminalID] else { return }
+        view.pastePrompt(prompt)
+        view.window?.makeFirstResponder(view)
     }
 
     /// Sidebar Cmd+click: add/remove this project from the shown set. Never
