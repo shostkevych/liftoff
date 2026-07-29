@@ -92,7 +92,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     private func projectItem(_ project: Project, in store: AppStore) -> NSMenuItem {
         let item = NSMenuItem()
-        let barColor = (store.tagColor(for: project.folder).map { NSColor($0) }) ?? .secondaryLabelColor
+        let barColor = NSColor(store.accentColor(for: project))
         let tabs = project.terminals.count
         let busy = project.terminals.contains { $0.isBusy }
 

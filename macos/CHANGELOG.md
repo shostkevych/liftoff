@@ -10,6 +10,7 @@ prompt.
 - Added locally stored prompt shortcuts that paste into the active terminal without sending
 - The CMD + SHIFT quick switcher now moves between Projects and Shortcuts with Left/Right, navigates with Up/Down, and acts on release
 - Added a reusable global tag catalogue where tag names and colors can be managed once for every project
+- New Terminal now opens as a neutral standalone Terminal instead of exposing the home directory as a project
 
 ## 1.16
 

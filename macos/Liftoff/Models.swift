@@ -385,8 +385,14 @@ final class TerminalSession: Identifiable {
 
 @Observable
 final class Project: Identifiable {
+    enum Kind: Equatable {
+        case project
+        case terminal
+    }
+
     let id = UUID()
     let folder: URL
+    let kind: Kind
     var terminals: [TerminalSession] = []
     var activeTerminalID: UUID?
     /// Terminals currently shown side by side (split) in this pane.
@@ -400,7 +406,8 @@ final class Project: Identifiable {
     @ObservationIgnored
     var onTerminalsChanged: (() -> Void)?
 
-    var name: String { folder.lastPathComponent }
+    var name: String { kind == .terminal ? "Terminal" : folder.lastPathComponent }
+    var isStandaloneTerminal: Bool { kind == .terminal }
 
     var activeTerminal: TerminalSession? {
         terminals.first { $0.id == activeTerminalID }
@@ -410,15 +417,17 @@ final class Project: Identifiable {
         visibleTerminalIDs.compactMap { id in terminals.first { $0.id == id } }
     }
 
-    init(folder: URL) {
+    init(folder: URL, kind: Kind = .project) {
         self.folder = folder
+        self.kind = kind
         addTerminal()
     }
 
     /// Rebuild a project around a restored session (Cmd+Shift+T after the
     /// project's last tab was closed) instead of spawning a fresh shell.
-    init(folder: URL, restoring session: TerminalSession) {
+    init(folder: URL, kind: Kind = .project, restoring session: TerminalSession) {
         self.folder = folder
+        self.kind = kind
         terminals = [session]
         activeTerminalID = session.id
         visibleTerminalIDs = [session.id]
@@ -606,14 +615,25 @@ final class AppStore {
         CompanionServer.shared.disconnectTerminal(terminalID)
     }
 
-    /// The tag assigned to a project, if any.
-    func tag(for project: Project) -> ProjectTag? { projectTags[project.folder.path] }
+    /// The tag assigned to a project, if any. Standalone terminals are neutral.
+    func tag(for project: Project) -> ProjectTag? {
+        guard !project.isStandaloneTerminal else { return nil }
+        return projectTags[project.folder.path]
+    }
 
     /// The tag assigned to any folder path (used for recents not yet opened).
     func tag(forPath path: String) -> ProjectTag? { projectTags[path] }
 
     /// Resolved project header color (the tag color), as a hex string.
-    func colorHex(for project: Project) -> String? { colorHex(forPath: project.folder.path) }
+    func colorHex(for project: Project) -> String? {
+        guard !project.isStandaloneTerminal else { return nil }
+        return colorHex(forPath: project.folder.path)
+    }
+
+    /// Neutral gray for standalone terminals; tag color for real projects.
+    func accentColor(for project: Project) -> Color {
+        project.isStandaloneTerminal ? Color(white: 0.32) : (tag(for: project)?.color ?? .secondary)
+    }
 
     func colorHex(forPath path: String) -> String? { projectTags[path]?.colorHex }
 
@@ -817,7 +837,10 @@ final class AppStore {
     }
 
     func addProject(folder: URL, promptTag: Bool = true) {
-        if let existing = projects.first(where: { $0.folder.standardizedFileURL.path == folder.standardizedFileURL.path }) {
+        if let existing = projects.first(where: {
+            !$0.isStandaloneTerminal
+                && $0.folder.standardizedFileURL.path == folder.standardizedFileURL.path
+        }) {
             selectedProjectIDs = [existing.id]
             activeProjectID = existing.id
             bumpStructure()
@@ -833,6 +856,19 @@ final class AppStore {
         if promptTag && projectTags[folder.path] == nil {
             enqueueTagPrompt(folder)
         }
+        bumpStructure()
+    }
+
+    /// Open a neutral shell at the user's home directory without treating it
+    /// as a project, recent folder, tag target, or pinned workspace.
+    func addStandaloneTerminal() {
+        let folder = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+        let project = Project(folder: folder, kind: .terminal)
+        project.onTerminalsChanged = { [weak self] in self?.bumpStructure() }
+        projects.append(project)
+        selectedProjectIDs = [project.id]
+        activeProjectID = project.id
+        expandedProjectID = nil
         bumpStructure()
     }
 
@@ -1239,10 +1275,13 @@ final class AppStore {
     func commitSidebarWidth() { persist() }
 
     /// Whether a project is pinned (reopened automatically on next launch).
-    func isPinned(_ project: Project) -> Bool { pinnedPaths.contains(project.folder.path) }
+    func isPinned(_ project: Project) -> Bool {
+        !project.isStandaloneTerminal && pinnedPaths.contains(project.folder.path)
+    }
 
     /// Toggle a project's pin. Pinned projects are reopened on the next launch.
     func togglePin(_ project: Project) {
+        guard !project.isStandaloneTerminal else { return }
         if pinnedPaths.contains(project.folder.path) {
             pinnedPaths.remove(project.folder.path)
         } else {
@@ -1255,7 +1294,7 @@ final class AppStore {
     /// Skips folders that no longer exist or are already open, and doesn't
     /// prompt for tags since these were opened before.
     func restorePinnedProjects() {
-        let open = Set(projects.map(\.folder.path))
+        let open = Set(projects.filter { !$0.isStandaloneTerminal }.map(\.folder.path))
         for path in pinnedPaths where !open.contains(path) {
             let url = URL(fileURLWithPath: path)
             guard FileManager.default.fileExists(atPath: url.path) else { continue }
@@ -1474,6 +1513,7 @@ final class AppStore {
     private struct ClosedTerminal {
         let session: TerminalSession
         let projectFolder: URL
+        let projectKind: Project.Kind
         let index: Int
         let reaper: Task<Void, Never>
     }
@@ -1497,7 +1537,11 @@ final class AppStore {
             self?.closedTerminals.removeAll { $0.session.id == terminal.id }
         }
         closedTerminals.append(ClosedTerminal(
-            session: terminal, projectFolder: project.folder, index: index, reaper: reaper
+            session: terminal,
+            projectFolder: project.folder,
+            projectKind: project.kind,
+            index: index,
+            reaper: reaper
         ))
         if closedTerminals.count > Self.closedTerminalLimit {
             let evicted = closedTerminals.removeFirst()
@@ -1516,14 +1560,20 @@ final class AppStore {
         guard let entry = closedTerminals.popLast() else { return }
         entry.reaper.cancel()
 
-        if let project = projects.first(where: {
-            $0.folder.standardizedFileURL.path == entry.projectFolder.standardizedFileURL.path
-        }) {
+        if entry.projectKind == .project,
+           let project = projects.first(where: {
+               !$0.isStandaloneTerminal
+                   && $0.folder.standardizedFileURL.path == entry.projectFolder.standardizedFileURL.path
+           }) {
             project.restoreTerminal(entry.session, at: entry.index)
             selectedProjectIDs = [project.id]
             activeProjectID = project.id
         } else {
-            let project = Project(folder: entry.projectFolder, restoring: entry.session)
+            let project = Project(
+                folder: entry.projectFolder,
+                kind: entry.projectKind,
+                restoring: entry.session
+            )
             project.onTerminalsChanged = { [weak self] in self?.bumpStructure() }
             projects.append(project)
             selectedProjectIDs = [project.id]

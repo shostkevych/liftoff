@@ -9,7 +9,7 @@ struct ContentView: View {
                 ProjectPicker(onOpen: { urls in
                     urls.forEach { store.addProject(folder: $0) }
                 }, onTerminal: {
-                    store.addProject(folder: URL(fileURLWithPath: NSHomeDirectory()))
+                    store.addStandaloneTerminal()
                 })
             } else {
                 splitLayout
@@ -123,7 +123,7 @@ struct ContentView: View {
                         urls.forEach { store.addProject(folder: $0) }
                         store.newProjectVisible = false
                     }, onTerminal: {
-                        store.addProject(folder: URL(fileURLWithPath: NSHomeDirectory()))
+                        store.addStandaloneTerminal()
                         store.newProjectVisible = false
                     })
                     Button { store.newProjectVisible = false } label: {
@@ -347,7 +347,7 @@ struct ProjectSidebarRow: View {
     @State private var hovering = false
     @State private var gitContext: SidebarGitContext?
 
-    private var color: Color { store.tagColor(for: project.folder) ?? .secondary }
+    private var color: Color { store.accentColor(for: project) }
     private var isSelected: Bool { store.selectedProjectIDs.contains(project.id) }
     private var isActive: Bool { store.activeProjectID == project.id }
     private var isBusy: Bool { project.terminals.contains { $0.isBusy } }
@@ -391,7 +391,7 @@ struct ProjectSidebarRow: View {
         )
         .animation(.snappy(duration: 0.18), value: isActive)
         .task(id: isActive) {
-            if isActive, gitContext == nil {
+            if isActive, !project.isStandaloneTerminal, gitContext == nil {
                 gitContext = await SidebarGitContext.load(for: project.folder)
             }
         }
@@ -484,18 +484,20 @@ struct ProjectSidebarRow: View {
             }
         }
         .onHover { hovering = $0 }
-        .help(project.folder.path)
+        .help(project.isStandaloneTerminal ? "Terminal" : project.folder.path)
         .contextMenu {
-            Button(isPinned ? "Unpin Project" : "Pin Project") { store.togglePin(project) }
-            Divider()
-            Button(store.tag(for: project) == nil ? "Add Tag…" : "Edit Tag…") {
-                store.enqueueTagPrompt(project.folder)
+            if !project.isStandaloneTerminal {
+                Button(isPinned ? "Unpin Project" : "Pin Project") { store.togglePin(project) }
+                Divider()
+                Button(store.tag(for: project) == nil ? "Add Tag…" : "Edit Tag…") {
+                    store.enqueueTagPrompt(project.folder)
+                }
+                if store.tag(for: project) != nil {
+                    Button("Remove Tag") { store.setTag(nil, for: project.folder) }
+                }
+                Divider()
             }
-            if store.tag(for: project) != nil {
-                Button("Remove Tag") { store.setTag(nil, for: project.folder) }
-            }
-            Divider()
-            Button("Close Project") {
+            Button(project.isStandaloneTerminal ? "Close Terminal" : "Close Project") {
                 project.terminals.forEach { TerminalHostView.dispose($0) }
                 store.closeProject(project)
             }
@@ -651,7 +653,7 @@ struct SidebarRailDot: View {
 
     @State private var hovering = false
 
-    private var color: Color { store.tagColor(for: project.folder) ?? .secondary }
+    private var color: Color { store.accentColor(for: project) }
     private var isSelected: Bool { store.selectedProjectIDs.contains(project.id) }
 
     var body: some View {
@@ -702,7 +704,7 @@ struct ProjectPane: View {
     private var paneHeader: some View {
         HStack(spacing: 6) {
             RoundedRectangle(cornerRadius: 1.5)
-                .fill(store.tagColor(for: project.folder) ?? .secondary)
+                .fill(store.accentColor(for: project))
                 .frame(width: 3, height: 14)
             Text(project.name)
                 .font(.system(size: 13, weight: .semibold))
@@ -723,7 +725,9 @@ struct ProjectPane: View {
         .background {
             ZStack {
                 Rectangle().fill(.bar)
-                (store.tagColor(for: project.folder) ?? .clear)
+                (project.isStandaloneTerminal
+                    ? Color(white: 0.18)
+                    : (store.tagColor(for: project.folder) ?? .clear))
                     .opacity(isFocused ? 0.5 : 0.3)
             }
         }
@@ -743,16 +747,18 @@ struct ProjectPane: View {
 
     @ViewBuilder
     private var headerContextMenu: some View {
-        Button(store.tag(for: project) == nil ? "Add Tag…" : "Edit Tag…") {
-            store.enqueueTagPrompt(project.folder)
-        }
-        if store.tag(for: project) != nil {
-            Button("Remove Tag") {
-                store.setTag(nil, for: project.folder)
+        if !project.isStandaloneTerminal {
+            Button(store.tag(for: project) == nil ? "Add Tag…" : "Edit Tag…") {
+                store.enqueueTagPrompt(project.folder)
             }
+            if store.tag(for: project) != nil {
+                Button("Remove Tag") {
+                    store.setTag(nil, for: project.folder)
+                }
+            }
+            Divider()
         }
-        Divider()
-        Button("Close Project") {
+        Button(project.isStandaloneTerminal ? "Close Terminal" : "Close Project") {
             project.terminals.forEach { TerminalHostView.dispose($0) }
             store.closeProject(project)
         }
@@ -1046,7 +1052,7 @@ struct ProjectSwitcherOverlay: View {
     }
 
     private func projectRow(number: Int, project: Project) -> some View {
-        let color = store.tagColor(for: project.folder) ?? .secondary
+        let color = store.accentColor(for: project)
         let isSelected = store.projectSwitcherSelectionIndex == number - 1
         let tabCount = project.terminals.count
         return HStack(spacing: 10) {
