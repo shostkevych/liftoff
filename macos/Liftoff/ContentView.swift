@@ -9,7 +9,7 @@ struct ContentView: View {
                 ProjectPicker(onOpen: { urls in
                     urls.forEach { store.addProject(folder: $0) }
                 }, onTerminal: {
-                    store.addProject(folder: URL(fileURLWithPath: NSHomeDirectory()))
+                    store.addStandaloneTerminal()
                 })
             } else {
                 splitLayout
@@ -123,7 +123,7 @@ struct ContentView: View {
                         urls.forEach { store.addProject(folder: $0) }
                         store.newProjectVisible = false
                     }, onTerminal: {
-                        store.addProject(folder: URL(fileURLWithPath: NSHomeDirectory()))
+                        store.addStandaloneTerminal()
                         store.newProjectVisible = false
                     })
                     Button { store.newProjectVisible = false } label: {
@@ -347,7 +347,7 @@ struct ProjectSidebarRow: View {
     @State private var hovering = false
     @State private var gitContext: SidebarGitContext?
 
-    private var color: Color { store.tagColor(for: project.folder) ?? .secondary }
+    private var color: Color { store.accentColor(for: project) }
     private var isSelected: Bool { store.selectedProjectIDs.contains(project.id) }
     private var isActive: Bool { store.activeProjectID == project.id }
     private var isBusy: Bool { project.terminals.contains { $0.isBusy } }
@@ -391,7 +391,7 @@ struct ProjectSidebarRow: View {
         )
         .animation(.snappy(duration: 0.18), value: isActive)
         .task(id: isActive) {
-            if isActive, gitContext == nil {
+            if isActive, !project.isStandaloneTerminal, gitContext == nil {
                 gitContext = await SidebarGitContext.load(for: project.folder)
             }
         }
@@ -484,18 +484,20 @@ struct ProjectSidebarRow: View {
             }
         }
         .onHover { hovering = $0 }
-        .help(project.folder.path)
+        .help(project.isStandaloneTerminal ? "Terminal" : project.folder.path)
         .contextMenu {
-            Button(isPinned ? "Unpin Project" : "Pin Project") { store.togglePin(project) }
-            Divider()
-            Button(store.tag(for: project) == nil ? "Add Tag…" : "Edit Tag…") {
-                store.enqueueTagPrompt(project.folder)
+            if !project.isStandaloneTerminal {
+                Button(isPinned ? "Unpin Project" : "Pin Project") { store.togglePin(project) }
+                Divider()
+                Button(store.tag(for: project) == nil ? "Add Tag…" : "Edit Tag…") {
+                    store.enqueueTagPrompt(project.folder)
+                }
+                if store.tag(for: project) != nil {
+                    Button("Remove Tag") { store.setTag(nil, for: project.folder) }
+                }
+                Divider()
             }
-            if store.tag(for: project) != nil {
-                Button("Remove Tag") { store.setTag(nil, for: project.folder) }
-            }
-            Divider()
-            Button("Close Project") {
+            Button(project.isStandaloneTerminal ? "Close Terminal" : "Close Project") {
                 project.terminals.forEach { TerminalHostView.dispose($0) }
                 store.closeProject(project)
             }
@@ -651,7 +653,7 @@ struct SidebarRailDot: View {
 
     @State private var hovering = false
 
-    private var color: Color { store.tagColor(for: project.folder) ?? .secondary }
+    private var color: Color { store.accentColor(for: project) }
     private var isSelected: Bool { store.selectedProjectIDs.contains(project.id) }
 
     var body: some View {
@@ -702,7 +704,7 @@ struct ProjectPane: View {
     private var paneHeader: some View {
         HStack(spacing: 6) {
             RoundedRectangle(cornerRadius: 1.5)
-                .fill(store.tagColor(for: project.folder) ?? .secondary)
+                .fill(store.accentColor(for: project))
                 .frame(width: 3, height: 14)
             Text(project.name)
                 .font(.system(size: 13, weight: .semibold))
@@ -723,7 +725,9 @@ struct ProjectPane: View {
         .background {
             ZStack {
                 Rectangle().fill(.bar)
-                (store.tagColor(for: project.folder) ?? .clear)
+                (project.isStandaloneTerminal
+                    ? Color(white: 0.18)
+                    : (store.tagColor(for: project.folder) ?? .clear))
                     .opacity(isFocused ? 0.5 : 0.3)
             }
         }
@@ -743,16 +747,18 @@ struct ProjectPane: View {
 
     @ViewBuilder
     private var headerContextMenu: some View {
-        Button(store.tag(for: project) == nil ? "Add Tag…" : "Edit Tag…") {
-            store.enqueueTagPrompt(project.folder)
-        }
-        if store.tag(for: project) != nil {
-            Button("Remove Tag") {
-                store.setTag(nil, for: project.folder)
+        if !project.isStandaloneTerminal {
+            Button(store.tag(for: project) == nil ? "Add Tag…" : "Edit Tag…") {
+                store.enqueueTagPrompt(project.folder)
             }
+            if store.tag(for: project) != nil {
+                Button("Remove Tag") {
+                    store.setTag(nil, for: project.folder)
+                }
+            }
+            Divider()
         }
-        Divider()
-        Button("Close Project") {
+        Button(project.isStandaloneTerminal ? "Close Terminal" : "Close Project") {
             project.terminals.forEach { TerminalHostView.dispose($0) }
             store.closeProject(project)
         }
@@ -962,29 +968,52 @@ struct ProjectPane: View {
     }
 }
 
-/// Cmd+Shift HUD: arrows or 1…9 highlight a project while the chord is held;
-/// releasing the modifiers confirms it without stealing terminal focus.
+/// Cmd+Shift HUD: left/right changes mode, up/down chooses an item, and
+/// releasing confirms without stealing terminal focus.
 struct ProjectSwitcherOverlay: View {
     @Environment(AppStore.self) private var store
+    @State private var shortcutStore = PromptShortcutStore.shared
 
     var body: some View {
         VStack(spacing: 12) {
             HStack(spacing: 6) {
                 Image(systemName: "command")
                 Image(systemName: "shift")
-                Text("Switch Project")
+                Text("Quick Switch")
                     .padding(.leading, 2)
             }
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(.secondary)
 
+            HStack(spacing: 4) {
+                tab("Projects", icon: "folder", mode: .projects)
+                tab("Shortcuts", icon: "text.quote", mode: .shortcuts)
+            }
+            .padding(3)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(.white.opacity(0.05))
+            )
+
             VStack(spacing: 4) {
-                ForEach(Array(store.projects.prefix(9).enumerated()), id: \.element.id) { index, project in
-                    row(number: index + 1, project: project)
+                if store.switcherMode == .projects {
+                    if store.projects.isEmpty {
+                        emptyRow("No open projects")
+                    } else {
+                        ForEach(Array(store.projects.prefix(9).enumerated()), id: \.element.id) { index, project in
+                            projectRow(number: index + 1, project: project)
+                        }
+                    }
+                } else if shortcutStore.shortcuts.isEmpty {
+                    emptyRow("Add shortcuts in Settings")
+                } else {
+                    ForEach(Array(shortcutStore.shortcuts.prefix(9).enumerated()), id: \.element.id) { index, shortcut in
+                        shortcutRow(number: index + 1, shortcut: shortcut)
+                    }
                 }
             }
 
-            Text("↑↓ choose · release to open · 1–9 select")
+            Text("←→ mode · ↑↓ choose · release to \(store.switcherMode == .projects ? "open" : "paste")")
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
         }
@@ -1006,8 +1035,24 @@ struct ProjectSwitcherOverlay: View {
         .allowsHitTesting(false)
     }
 
-    private func row(number: Int, project: Project) -> some View {
-        let color = store.tagColor(for: project.folder) ?? .secondary
+    private func tab(_ title: String, icon: String, mode: SwitcherMode) -> some View {
+        let selected = store.switcherMode == mode
+        return HStack(spacing: 6) {
+            Image(systemName: icon)
+            Text(title)
+        }
+        .font(.system(size: 11, weight: .semibold))
+        .foregroundStyle(selected ? .primary : .secondary)
+        .frame(maxWidth: .infinity)
+        .frame(height: 28)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(selected ? Color.white.opacity(0.09) : .clear)
+        )
+    }
+
+    private func projectRow(number: Int, project: Project) -> some View {
+        let color = store.accentColor(for: project)
         let isSelected = store.projectSwitcherSelectionIndex == number - 1
         let tabCount = project.terminals.count
         return HStack(spacing: 10) {
@@ -1037,6 +1082,52 @@ struct ProjectSwitcherOverlay: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(isSelected ? Color.white.opacity(0.06) : .clear)
         )
+    }
+
+    private func shortcutRow(number: Int, shortcut: PromptShortcut) -> some View {
+        let isSelected = store.shortcutSwitcherSelectionIndex == number - 1
+        return HStack(spacing: 10) {
+            Text("\(number)")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(isSelected ? .white : .secondary)
+                .frame(width: 22, height: 22)
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(isSelected ? Color.brand.opacity(0.9) : .white.opacity(0.08))
+                )
+            Image(systemName: "text.quote")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(isSelected ? Color.brand : .secondary)
+                .frame(width: 14)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(shortcut.name.isEmpty ? "Untitled Shortcut" : shortcut.name)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+                    .lineLimit(1)
+                if !shortcut.prompt.isEmpty {
+                    Text(shortcut.prompt)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 38)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isSelected ? Color.white.opacity(0.06) : .clear)
+        )
+    }
+
+    private func emptyRow(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 12))
+            .foregroundStyle(.tertiary)
+            .frame(maxWidth: .infinity)
+            .frame(height: 54)
     }
 }
 

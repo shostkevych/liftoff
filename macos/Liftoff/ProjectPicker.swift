@@ -414,7 +414,7 @@ struct PlaceholderPane: View {
                 urls.forEach { store.addProject(folder: $0) }
                 store.removePlaceholder(id)
             }, onTerminal: {
-                store.addProject(folder: URL(fileURLWithPath: NSHomeDirectory()))
+                store.addStandaloneTerminal()
                 store.removePlaceholder(id)
             })
         }

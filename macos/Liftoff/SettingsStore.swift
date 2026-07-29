@@ -20,11 +20,18 @@ enum SettingsStore {
         var hintsEnabled: Bool = true
         /// The next hint in the rotating catalogue.
         var nextHintIndex: Int = 0
+        /// User-defined prompt snippets shown in the quick switcher.
+        var promptShortcuts: [PromptShortcut] = []
+        /// Reusable global project tags (name + color).
+        var projectTagDefinitions: [ProjectTagDefinition] = []
+        /// Last quick-switcher tab, restored on the next invocation and launch.
+        var switcherMode: SwitcherMode = .projects
 
         enum CodingKeys: String, CodingKey {
             case recentProjectPaths, terminalFontSize, projectTags, projectColors,
                  hasSeenWelcome, declinedHookDirs, keepAwake, pinnedProjectPaths,
-                 sidebarWidth, companionToken, hintsEnabled, nextHintIndex
+                 sidebarWidth, companionToken, hintsEnabled, nextHintIndex,
+                 promptShortcuts, projectTagDefinitions, switcherMode
             // Legacy webPassword + cerebrasApiKey decoded during migration then dropped.
         }
 
@@ -33,7 +40,9 @@ enum SettingsStore {
              declinedHookDirs: [String] = [], keepAwake: Bool = true,
              pinnedProjectPaths: [String] = [], sidebarWidth: CGFloat = 220,
              companionToken: String = "", hintsEnabled: Bool = true,
-             nextHintIndex: Int = 0) {
+             nextHintIndex: Int = 0, promptShortcuts: [PromptShortcut] = [],
+             projectTagDefinitions: [ProjectTagDefinition] = [],
+             switcherMode: SwitcherMode = .projects) {
             self.recentProjectPaths = recentProjectPaths
             self.terminalFontSize = terminalFontSize
             self.projectTags = projectTags
@@ -45,6 +54,9 @@ enum SettingsStore {
             self.companionToken = companionToken
             self.hintsEnabled = hintsEnabled
             self.nextHintIndex = nextHintIndex
+            self.promptShortcuts = promptShortcuts
+            self.projectTagDefinitions = projectTagDefinitions
+            self.switcherMode = switcherMode
         }
 
         init(from decoder: Decoder) throws {
@@ -65,6 +77,20 @@ enum SettingsStore {
             companionToken = try c.decodeIfPresent(String.self, forKey: .companionToken) ?? ""
             hintsEnabled = try c.decodeIfPresent(Bool.self, forKey: .hintsEnabled) ?? true
             nextHintIndex = try c.decodeIfPresent(Int.self, forKey: .nextHintIndex) ?? 0
+            promptShortcuts = try c.decodeIfPresent([PromptShortcut].self, forKey: .promptShortcuts) ?? []
+            projectTagDefinitions = try c.decodeIfPresent(
+                [ProjectTagDefinition].self,
+                forKey: .projectTagDefinitions
+            ) ?? []
+            if projectTagDefinitions.isEmpty {
+                var seen = Set<String>()
+                projectTagDefinitions = projectTags.values.compactMap { tag in
+                    let label = tag.label.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !label.isEmpty, seen.insert(label.lowercased()).inserted else { return nil }
+                    return ProjectTagDefinition(label: label, colorHex: tag.colorHex)
+                }
+            }
+            switcherMode = try c.decodeIfPresent(SwitcherMode.self, forKey: .switcherMode) ?? .projects
         }
 
         func encode(to encoder: Encoder) throws {
@@ -80,12 +106,16 @@ enum SettingsStore {
             try c.encode(companionToken, forKey: .companionToken)
             try c.encode(hintsEnabled, forKey: .hintsEnabled)
             try c.encode(nextHintIndex, forKey: .nextHintIndex)
+            try c.encode(promptShortcuts, forKey: .promptShortcuts)
+            try c.encode(projectTagDefinitions, forKey: .projectTagDefinitions)
+            try c.encode(switcherMode, forKey: .switcherMode)
         }
     }
 
     static let directory = URL(fileURLWithPath: NSHomeDirectory())
         .appendingPathComponent(BuildVariant.settingsDirectoryName)
     static let file = directory.appendingPathComponent("settings.json")
+    private static let saveQueue = DispatchQueue(label: "com.shostkevych.liftoff.settings-save")
 
     static func load() -> Settings {
         guard let data = try? Data(contentsOf: file),
@@ -148,7 +178,7 @@ enum SettingsStore {
         guard let data = try? encoder.encode(settings) else { return }
         let directory = Self.directory
         let file = Self.file
-        DispatchQueue.global(qos: .utility).async {
+        saveQueue.async {
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let tmp = directory.appendingPathComponent("settings.tmp")
             try? data.write(to: tmp, options: .atomic)

@@ -445,7 +445,7 @@ final class CompanionServer {
                 openProject(path, for: client)
             }
         case "openempty":
-            openProject(NSHomeDirectory(), for: client)
+            openStandaloneTerminal(for: client)
         case "newtab":
             if let pidStr = msg["pid"] as? String, let pid = UUID(uuidString: pidStr) {
                 newTab(in: pid, for: client)
@@ -486,7 +486,9 @@ final class CompanionServer {
 
     private func sendRecents(to client: Client) {
         guard let store = AppStore.shared ?? AppStore.allStores.first else { return }
-        let openPaths = Set(AppStore.allStores.flatMap { $0.projects.map { $0.folder.path } })
+        let openPaths = Set(AppStore.allStores.flatMap {
+            $0.projects.filter { !$0.isStandaloneTerminal }.map { $0.folder.path }
+        })
         var items: [[String: Any]] = []
         for url in store.recentProjectURLs where !openPaths.contains(url.path) {
             var item: [String: Any] = ["path": url.path, "name": url.lastPathComponent]
@@ -511,6 +513,15 @@ final class CompanionServer {
         }
         sendSessions(to: client)
         if let newTid { send(["t": "opened", "tid": newTid], to: client) }
+    }
+
+    private func openStandaloneTerminal(for client: Client) {
+        guard let store = AppStore.shared ?? AppStore.allStores.first else { return }
+        store.addStandaloneTerminal()
+        sendSessions(to: client)
+        if let tid = store.activeProject?.activeTerminalID?.uuidString {
+            send(["t": "opened", "tid": tid], to: client)
+        }
     }
 
     private func newTab(in pid: UUID, for client: Client) {
@@ -551,7 +562,8 @@ final class CompanionServer {
 
     private func storeAndProject(forPath path: String) -> (AppStore, Project)? {
         rebuildIndexesIfNeeded()
-        for (store, project) in projectIndex.values where project.folder.path == path {
+        for (store, project) in projectIndex.values
+        where !project.isStandaloneTerminal && project.folder.path == path {
             return (store, project)
         }
         return nil
