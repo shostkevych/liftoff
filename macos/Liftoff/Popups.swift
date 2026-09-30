@@ -75,8 +75,8 @@ struct LiftoffHint: Identifiable, Equatable {
     static let all: [LiftoffHint] = [
         .init(id: 0, title: "Instant terminal",
               message: "Press CMD + I from anywhere to summon a fresh terminal. Press it again to dismiss."),
-        .init(id: 1, title: "Quick project switcher",
-              message: "Hold CMD + SHIFT, use UP or DOWN, then release to switch projects. Number keys work too."),
+        .init(id: 1, title: "Quick switcher",
+              message: "Hold CMD + SHIFT. Use LEFT or RIGHT for projects and prompt shortcuts, UP or DOWN to choose, then release."),
         .init(id: 2, title: "Projects side by side",
               message: "CMD + click projects in the sidebar to keep several of them visible at once."),
         .init(id: 3, title: "Split a terminal",
@@ -223,8 +223,9 @@ struct AboutPopup: View {
     }
 }
 
-/// Cmd+F result popup: Cerebras summary of the selected terminal text.
+/// Cmd+F result popup: AI summary of the selected terminal text.
 struct SummaryPopup: View {
+    @Environment(AppStore.self) private var store
     let state: AppStore.SummaryState
     let dismiss: () -> Void
 
@@ -235,7 +236,7 @@ struct SummaryPopup: View {
             case .loading:
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("Summarizing with Cerebras…")
+                    Text("Summarizing…")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
@@ -270,8 +271,7 @@ struct SummaryPopup: View {
         HStack(spacing: 5) {
             Image(systemName: "bolt.fill")
                 .font(.system(size: 9))
-            Text("Inference run on Cerebras · model ")
-                + Text("gpt-oss-120b").font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+            Text(store.summaryAttribution).font(.system(size: 10.5, weight: .semibold, design: .monospaced))
         }
         .font(.system(size: 10.5))
         .foregroundStyle(Color.brand)
@@ -420,77 +420,6 @@ struct WebPasswordPopup: View {
     }
 }
 
-/// Air → Set Cerebras API Key overlay: set/clear the key used for AI features
-/// (Cmd+F summary, greeting). Without a key, AI features are disabled.
-struct CerebrasKeyPopup: View {
-    @Environment(AppStore.self) private var store
-    let dismiss: () -> Void
-
-    @State private var draft: String = ""
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            PopupHeader(title: "Cerebras API Key", icon: "key.horizontal", dismiss: dismiss)
-
-            Text("Required for AI features — Cmd+F summaries and the welcome greeting. Stored securely in the system Keychain.")
-                .font(.system(size: 12.5))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            // Provider reference + model in use.
-            HStack(spacing: 8) {
-                Link(destination: URL(string: "https://cloud.cerebras.ai")!) {
-                    Label("Get a free key — cloud.cerebras.ai", systemImage: "arrow.up.right.square")
-                        .font(.system(size: 11.5, weight: .medium))
-                }
-                .foregroundStyle(Color.brand)
-                Spacer()
-                Text("gpt-oss-120b")
-                    .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2.5)
-                    .background(Capsule().fill(.quaternary))
-            }
-
-            SecureField("csk-…", text: $draft)
-                .textFieldStyle(.roundedBorder)
-                .controlSize(.large)
-                .focused($focused)
-                .onSubmit(save)
-
-            HStack {
-                if !store.cerebrasApiKey.isEmpty {
-                    Label("Key set", systemImage: "checkmark.circle.fill")
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.green)
-                } else {
-                    Label("No key — AI features disabled", systemImage: "exclamationmark.triangle.fill")
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.orange)
-                }
-                Spacer()
-                Button("Save") { save() }
-                    .keyboardShortcut(.return, modifiers: [])
-                    .buttonStyle(.borderedProminent)
-                    .tint(.brand)
-            }
-        }
-        .padding(20)
-        .modifier(PopupCard(width: 360))
-        .onAppear {
-            draft = store.cerebrasApiKey
-            focused = true
-        }
-    }
-
-    private func save() {
-        store.setCerebrasApiKey(draft)
-        dismiss()
-    }
-}
-
 /// Shown when an untagged project is opened (and from the header context menu):
 /// pick a label + palette color, reuse an existing tag, or skip.
 /// Cmd+R / tab right-click: set a custom tab name that nested processes
@@ -602,16 +531,17 @@ struct ProjectTagPopup: View {
                 }
             }
 
-            // Quick reuse of tag labels already in use (the color stays the
-            // project's own pick — tags carry no color).
+            // Quick reuse of global tag definitions (name + color).
             if !store.knownTags.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Recent tags")
+                    Text("Saved tags")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(.tertiary)
                         .textCase(.uppercase)
-                    FlowChips(labels: store.knownTags, selected: label) { picked in
-                        label = picked
+                    TagFlowChips(tags: store.knownTags, selected: label) { picked in
+                        label = picked.label
+                        colorHex = picked.colorHex
+                        familyIndex = TagPalette.familyIndex(of: picked.colorHex)
                     }
                 }
             }
@@ -674,20 +604,23 @@ struct ProjectTagPopup: View {
     }
 }
 
-/// Wrapping row of reusable tag-label chips, packed left-to-right (no fixed
-/// columns, so no dead space). Tags carry no color, so the chips are neutral —
-/// picking one just fills in the label; the active one is highlighted.
-private struct FlowChips: View {
-    let labels: [String]
+/// Wrapping row of reusable global tags, including their assigned colors.
+private struct TagFlowChips: View {
+    let tags: [ProjectTag]
     var selected: String = ""
-    let pick: (String) -> Void
+    let pick: (ProjectTag) -> Void
 
     var body: some View {
         FlowLayout(spacing: 8, lineSpacing: 8) {
-            ForEach(Array(labels.enumerated()), id: \.offset) { _, label in
-                let isOn = label.caseInsensitiveCompare(selected) == .orderedSame
-                Button { pick(label) } label: {
-                    Text(label)
+            ForEach(Array(tags.enumerated()), id: \.offset) { _, tag in
+                let isOn = tag.label.caseInsensitiveCompare(selected) == .orderedSame
+                Button { pick(tag) } label: {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(tag.color)
+                            .frame(width: 8, height: 8)
+                        Text(tag.label)
+                    }
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .fixedSize()
                         .padding(.horizontal, 11)

@@ -44,6 +44,7 @@
 		BD67871D54DB0DA698AD00B0 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFC2EC6B6CE211529E1CA9A6 /* KeychainHelper.swift */; };
 		C1749F05222D15A530FEEFE6 /* notification.caf in Resources */ = {isa = PBXBuildFile; fileRef = 881FD7201A16B83DA34EDC4B /* notification.caf */; };
 		C67DE1F595D9352C95BE601E /* InstantTerminal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2769538CCD6C5DDE8078CD27 /* InstantTerminal.swift */; };
+		C82372F9E1360842DC7180D7 /* AIAssistant.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1632AABFEA9C2ACEFF548B6 /* AIAssistant.swift */; };
 		C975AA9005B8FC5E9D8CC4DA /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4566DE507A0AC3EED8F4ABE0 /* NotificationManager.swift */; };
 		CBFA4C3CC281E93C0EB601DC /* icon.png in Resources */ = {isa = PBXBuildFile; fileRef = 1307C7DE438CB002F94D2141 /* icon.png */; };
 		CC7D49255D481D80C3D5D264 /* LiftoffApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A746EC67BBDCF1F1ABEA49EA /* LiftoffApp.swift */; };
@@ -58,6 +59,7 @@
 		EF7D22CEBC0BC0A0B6F57F55 /* AirConnect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 264F1EE6289BAF9F20D71B00 /* AirConnect.swift */; };
 		F5EF94208D6CFBD96A929C31 /* ProjectPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A05D9ABCCD98F831FA9AF42C /* ProjectPicker.swift */; };
 		F6E5A3C677862433383B35A0 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 154452DC795DC62917B90210 /* ContentView.swift */; };
+		FD52A1067EED9452A2E8C6C8 /* AIAssistantSettingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41CF45B3253A8F28DF8807FE /* AIAssistantSettingsPane.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -78,6 +80,7 @@
 		3A5BE2FEA834646BF79EFCC4 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		3C303AD35206058DCBE9AB57 /* WhatsNew.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNew.swift; sourceTree = "<group>"; };
 		3E1722A26A1A852A2C63A6D6 /* Onboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Onboarding.swift; sourceTree = "<group>"; };
+		41CF45B3253A8F28DF8807FE /* AIAssistantSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantSettingsPane.swift; sourceTree = "<group>"; };
 		4566DE507A0AC3EED8F4ABE0 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		45E769AF3A9C3665ED2E2AB4 /* web */ = {isa = PBXFileReference; lastKnownFileType = folder; name = web; path = ../web; sourceTree = SOURCE_ROOT; };
 		51199487A0E4D0AD4FDFC6E6 /* NotificationServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationServer.swift; sourceTree = "<group>"; };
@@ -106,6 +109,7 @@
 		B2CA2BA9646BBAB41AB39212 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		B803B53A93B485F1D122C8D7 /* SwiftTerm */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SwiftTerm; path = SwiftTerm; sourceTree = SOURCE_ROOT; };
 		CE6AD494AF88E813D6B6B7C8 /* Popups.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popups.swift; sourceTree = "<group>"; };
+		D1632AABFEA9C2ACEFF548B6 /* AIAssistant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistant.swift; sourceTree = "<group>"; };
 		E9D9DFEFE46D1408689FE39A /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
 		F1959883A235690B507FAC5F /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		F4B72799C96C9ABE26375302 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -138,6 +142,8 @@
 		41F6BDF1D35B20EF65B348DA /* Liftoff */ = {
 			isa = PBXGroup;
 			children = (
+				D1632AABFEA9C2ACEFF548B6 /* AIAssistant.swift */,
+				41CF45B3253A8F28DF8807FE /* AIAssistantSettingsPane.swift */,
 				264F1EE6289BAF9F20D71B00 /* AirConnect.swift */,
 				F908CAFEC82D93540969D5BE /* AnalyticsReporter.swift */,
 				623B841A213E8204AA38DF88 /* BuildVariant.swift */,
@@ -361,6 +367,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C82372F9E1360842DC7180D7 /* AIAssistant.swift in Sources */,
+				FD52A1067EED9452A2E8C6C8 /* AIAssistantSettingsPane.swift in Sources */,
 				EF7D22CEBC0BC0A0B6F57F55 /* AirConnect.swift in Sources */,
 				042014944D08F84DBB386FA9 /* AnalyticsReporter.swift in Sources */,
 				5965CA180A01B12DE1D55BC9 /* BuildVariant.swift in Sources */,
@@ -401,7 +409,7 @@
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 19;
+				CURRENT_PROJECT_VERSION = 20;
 				DEVELOPMENT_TEAM = 696F3B97CX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -410,7 +418,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.16;
+				MARKETING_VERSION = 1.17;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shostkevych.liftoff;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.10;
@@ -531,7 +539,7 @@
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 19;
+				CURRENT_PROJECT_VERSION = 20;
 				DEVELOPMENT_TEAM = 696F3B97CX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -540,7 +548,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.16;
+				MARKETING_VERSION = 1.17;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shostkevych.liftoff;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.10;
