@@ -635,11 +635,20 @@ final class AppStore {
 
     func colorHex(forPath path: String) -> String? { projectTags[path]?.colorHex }
 
-    var recentProjectURLs: [URL] {
-        recentProjectPaths
+    /// Every remembered project, including older tagged or pinned folders that
+    /// previous versions dropped from the ten-item recent history.
+    var storedProjectURLs: [URL] {
+        var seen = Set<String>()
+        let paths = recentProjectPaths
+            + Self.allStores.flatMap(\.recentProjectPaths)
+            + projectTags.keys.sorted()
+            + pinnedPaths.sorted()
+        return paths.filter { seen.insert($0).inserted }
             .map { URL(fileURLWithPath: $0) }
             .filter { FileManager.default.fileExists(atPath: $0.path) }
     }
+
+    var recentProjectURLs: [URL] { storedProjectURLs }
 
     init() {
         let settings = SettingsStore.load()
@@ -858,9 +867,11 @@ final class AppStore {
     }
 
     private func rememberRecent(_ folder: URL) {
-        recentProjectPaths.removeAll { $0 == folder.path }
-        recentProjectPaths.insert(folder.path, at: 0)
-        recentProjectPaths = Array(recentProjectPaths.prefix(10))
+        var seen = Set<String>()
+        let paths = [folder.path] + recentProjectPaths + Self.allStores.flatMap(\.recentProjectPaths)
+        let history = paths.filter { seen.insert($0).inserted }
+        recentProjectPaths = history
+        for store in Self.allStores { store.recentProjectPaths = history }
         persist()
     }
 

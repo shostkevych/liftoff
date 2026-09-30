@@ -45,14 +45,15 @@ struct ProjectPicker: View {
     @FocusState private var filterFocused: Bool
     @FocusState private var rootFocused: Bool
 
-    /// Recents matching the filter (name or path), newest first, capped at 8.
+    /// Keep the idle view compact; search covers every stored project.
     private var filteredRecents: [URL] {
-        let all = store.recentProjectURLs
-        let matched = query.isEmpty ? all : all.filter {
-            $0.lastPathComponent.localizedCaseInsensitiveContains(query)
-                || $0.path.localizedCaseInsensitiveContains(query)
+        let all = store.storedProjectURLs
+        guard searching else { return Array(all.prefix(8)) }
+        let filter = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return filter.isEmpty ? all : all.filter {
+            $0.lastPathComponent.localizedCaseInsensitiveContains(filter)
+                || $0.path.localizedCaseInsensitiveContains(filter)
         }
-        return Array(matched.prefix(8))
     }
 
     var body: some View {
@@ -113,7 +114,7 @@ struct ProjectPicker: View {
                 .controlSize(.large)
             }
 
-            if !store.recentProjectURLs.isEmpty {
+            if !store.storedProjectURLs.isEmpty {
                 recentList
             }
         }
@@ -121,7 +122,7 @@ struct ProjectPicker: View {
         .animation(.easeInOut(duration: 0.4), value: store.greeting)
         .animation(.easeInOut(duration: 0.35), value: appeared)
         // Type anywhere on this screen to start filtering recents.
-        .focusable(!store.recentProjectURLs.isEmpty)
+        .focusable(!store.storedProjectURLs.isEmpty)
         .focusEffectDisabled()
         .focused($rootFocused)
         .onKeyPress(phases: .down) { press in
@@ -129,13 +130,12 @@ struct ProjectPicker: View {
             // so a fast second keystroke that races the state update isn't lost;
             // once the TextField is first responder, root focus drops and it
             // receives keys directly (so no double-handling).
-            guard !store.recentProjectURLs.isEmpty, !filterFocused else { return .ignored }
+            guard !store.storedProjectURLs.isEmpty, !filterFocused else { return .ignored }
             guard press.modifiers.isDisjoint(with: [.command, .control, .option]) else { return .ignored }
             guard let c = press.characters.first,
                   c.isLetter || c.isNumber || "-_. ".contains(c) else { return .ignored }
             searching = true
             query.append(contentsOf: press.characters)
-            NSLog("LIFTOFF-SEARCH onKeyPress char=%@ query=%@ filterFocused=%d", press.characters, query, filterFocused ? 1 : 0)
             DispatchQueue.main.async { filterFocused = true }
             return .handled
         }
@@ -172,7 +172,7 @@ struct ProjectPicker: View {
     private var recentList: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("Recent")
+                Text(searching ? "All Projects" : "Recent")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.tertiary)
                     .textCase(.uppercase)
@@ -194,17 +194,16 @@ struct ProjectPicker: View {
             .padding(.trailing, 4)
             .padding(.bottom, 2)
 
-            // Filter recents by name or path — revealed by the Search button.
+            // Search all stored projects by name or path — revealed by the Search button.
             if searching {
                 HStack(spacing: 9) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.tertiary)
-                    TextField("Filter projects", text: $query)
+                    TextField("Search all projects", text: $query)
                         .textFieldStyle(.plain)
                         .font(.system(size: 13.5))
                         .focused($filterFocused)
-                        .onChange(of: query) { _, v in NSLog("LIFTOFF-SEARCH field.onChange query=%@", v) }
                     Button {
                         query = ""
                         searching = false
@@ -226,22 +225,33 @@ struct ProjectPicker: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            ForEach(filteredRecents, id: \.path) { url in
-                RecentProjectRow(url: url, isSelected: selectedRecents.contains(url.path)) {
-                    if NSEvent.modifierFlags.contains(.command) {
-                        if selectedRecents.contains(url.path) {
-                            selectedRecents.remove(url.path)
-                        } else {
-                            selectedRecents.insert(url.path)
+            ScrollView {
+                LazyVStack(spacing: 6) {
+                    ForEach(filteredRecents, id: \.path) { url in
+                        RecentProjectRow(url: url, isSelected: selectedRecents.contains(url.path)) {
+                            if NSEvent.modifierFlags.contains(.command) {
+                                if selectedRecents.contains(url.path) {
+                                    selectedRecents.remove(url.path)
+                                } else {
+                                    selectedRecents.insert(url.path)
+                                }
+                            } else {
+                                onOpen([url])
+                            }
                         }
-                    } else {
-                        onOpen([url])
+                    }
+                    if filteredRecents.isEmpty {
+                        Text("No matching projects")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 16)
                     }
                 }
             }
+            .frame(height: min(CGFloat(max(filteredRecents.count, 1)) * 58, 320))
             if !selectedRecents.isEmpty {
                 Button("Open \(selectedRecents.count) Selected") {
-                    let urls = store.recentProjectURLs.filter { selectedRecents.contains($0.path) }
+                    let urls = store.storedProjectURLs.filter { selectedRecents.contains($0.path) }
                     selectedRecents.removeAll()
                     onOpen(urls)
                 }
