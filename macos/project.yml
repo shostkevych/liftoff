@@ -36,6 +36,7 @@ targets:
       path: Liftoff/Info.plist
       properties:
         NSPrincipalClass: NSApplication
+        NSLocalNetworkUsageDescription: "Liftoff needs local network access so terminal commands can connect to devices and servers on your network, and Liftoff Air can connect to this Mac."
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
         CFBundleIconName: icon

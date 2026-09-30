@@ -31,6 +31,8 @@
 	</dict>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Liftoff needs local network access so terminal commands can connect to devices and servers on your network, and Liftoff Air can connect to this Mac.</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>
