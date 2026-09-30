@@ -86,15 +86,6 @@ struct ContentView: View {
             }
         }
         .overlay {
-            if store.cerebrasKeyVisible {
-                ZStack {
-                    PopupBackdrop { store.cerebrasKeyVisible = false }
-                    CerebrasKeyPopup { store.cerebrasKeyVisible = false }
-                        .transition(.opacity.combined(with: .scale(scale: 0.97)))
-                }
-            }
-        }
-        .overlay {
             if let folder = store.tagPromptFolder {
                 ZStack {
                     // Skip (store color-only tag) when dismissing the backdrop.
@@ -186,7 +177,6 @@ struct ContentView: View {
         .animation(.snappy(duration: 0.2), value: store.helpVisible)
         .animation(.snappy(duration: 0.2), value: store.airConnectVisible)
         .animation(.snappy(duration: 0.2), value: store.webPasswordVisible)
-        .animation(.snappy(duration: 0.2), value: store.cerebrasKeyVisible)
         .animation(.snappy(duration: 0.2), value: store.newProjectVisible)
         .animation(.snappy(duration: 0.2), value: store.aboutVisible)
         .animation(.snappy(duration: 0.2), value: store.tagPromptFolder)

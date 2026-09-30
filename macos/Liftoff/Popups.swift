@@ -223,8 +223,9 @@ struct AboutPopup: View {
     }
 }
 
-/// Cmd+F result popup: Cerebras summary of the selected terminal text.
+/// Cmd+F result popup: AI summary of the selected terminal text.
 struct SummaryPopup: View {
+    @Environment(AppStore.self) private var store
     let state: AppStore.SummaryState
     let dismiss: () -> Void
 
@@ -235,7 +236,7 @@ struct SummaryPopup: View {
             case .loading:
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("Summarizing with Cerebras…")
+                    Text("Summarizing…")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
@@ -270,8 +271,7 @@ struct SummaryPopup: View {
         HStack(spacing: 5) {
             Image(systemName: "bolt.fill")
                 .font(.system(size: 9))
-            Text("Inference run on Cerebras · model ")
-                + Text("gpt-oss-120b").font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+            Text(store.summaryAttribution).font(.system(size: 10.5, weight: .semibold, design: .monospaced))
         }
         .font(.system(size: 10.5))
         .foregroundStyle(Color.brand)
@@ -416,77 +416,6 @@ struct WebPasswordPopup: View {
 
     private func save() {
         store.setWebPassword(draft)
-        dismiss()
-    }
-}
-
-/// Air → Set Cerebras API Key overlay: set/clear the key used for AI features
-/// (Cmd+F summary, greeting). Without a key, AI features are disabled.
-struct CerebrasKeyPopup: View {
-    @Environment(AppStore.self) private var store
-    let dismiss: () -> Void
-
-    @State private var draft: String = ""
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            PopupHeader(title: "Cerebras API Key", icon: "key.horizontal", dismiss: dismiss)
-
-            Text("Required for AI features — Cmd+F summaries and the welcome greeting. Stored securely in the system Keychain.")
-                .font(.system(size: 12.5))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            // Provider reference + model in use.
-            HStack(spacing: 8) {
-                Link(destination: URL(string: "https://cloud.cerebras.ai")!) {
-                    Label("Get a free key — cloud.cerebras.ai", systemImage: "arrow.up.right.square")
-                        .font(.system(size: 11.5, weight: .medium))
-                }
-                .foregroundStyle(Color.brand)
-                Spacer()
-                Text("gpt-oss-120b")
-                    .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2.5)
-                    .background(Capsule().fill(.quaternary))
-            }
-
-            SecureField("csk-…", text: $draft)
-                .textFieldStyle(.roundedBorder)
-                .controlSize(.large)
-                .focused($focused)
-                .onSubmit(save)
-
-            HStack {
-                if !store.cerebrasApiKey.isEmpty {
-                    Label("Key set", systemImage: "checkmark.circle.fill")
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.green)
-                } else {
-                    Label("No key — AI features disabled", systemImage: "exclamationmark.triangle.fill")
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.orange)
-                }
-                Spacer()
-                Button("Save") { save() }
-                    .keyboardShortcut(.return, modifiers: [])
-                    .buttonStyle(.borderedProminent)
-                    .tint(.brand)
-            }
-        }
-        .padding(20)
-        .modifier(PopupCard(width: 360))
-        .onAppear {
-            draft = store.cerebrasApiKey
-            focused = true
-        }
-    }
-
-    private func save() {
-        store.setCerebrasApiKey(draft)
         dismiss()
     }
 }

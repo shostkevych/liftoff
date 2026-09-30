@@ -1,7 +1,7 @@
 import Foundation
 
 /// App settings live in the current build variant's settings directory.
-/// Sensitive values (webPassword, cerebrasApiKey) are stored in the system Keychain.
+/// Sensitive values (webPassword and AI provider keys) are stored in the system Keychain.
 enum SettingsStore {
     struct Settings: Codable {
         var recentProjectPaths: [String] = []
@@ -32,7 +32,7 @@ enum SettingsStore {
                  hasSeenWelcome, declinedHookDirs, keepAwake, pinnedProjectPaths,
                  sidebarWidth, companionToken, hintsEnabled, nextHintIndex,
                  promptShortcuts, projectTagDefinitions, switcherMode
-            // Legacy webPassword + cerebrasApiKey decoded during migration then dropped.
+            // Legacy secrets are omitted when settings are saved.
         }
 
         init(recentProjectPaths: [String] = [], terminalFontSize: CGFloat = 13,
@@ -129,9 +129,6 @@ enum SettingsStore {
             if let pw = legacy["webPassword"] as? String, !pw.isEmpty {
                 _ = KeychainHelper.store(key: "webPassword", value: pw)
             }
-            if let key = legacy["cerebrasApiKey"] as? String, !key.isEmpty {
-                _ = KeychainHelper.store(key: "cerebrasApiKey", value: key)
-            }
         }
 
         // Generate a companion token on first-ever load if one doesn't exist
@@ -200,15 +197,4 @@ enum SettingsStore {
         }
     }
 
-    /// Cerebras API key for AI features. Empty string means AI features are disabled.
-    static var cerebrasApiKey: String {
-        get { KeychainHelper.read(key: "cerebrasApiKey") ?? "" }
-        set {
-            if newValue.isEmpty {
-                KeychainHelper.delete(key: "cerebrasApiKey")
-            } else {
-                KeychainHelper.store(key: "cerebrasApiKey", value: newValue)
-            }
-        }
-    }
 }

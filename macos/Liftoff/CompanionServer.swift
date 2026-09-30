@@ -611,7 +611,7 @@ final class CompanionServer {
         greetingRequested = true
         Task { @MainActor in
             for attempt in 0..<3 {
-                let text = await AppStore.cerebrasChat(system: Self.greetingSystem, user: "Generate the greeting.", temperature: 1.2)
+                let text = await AppStore.assistantChat(system: Self.greetingSystem, user: "Generate the greeting.")
                 if let text, text.count < 220 {
                     self.greeting = text
                     for c in self.clients.values where c.authed { self.send(["t": "greeting", "text": text], to: c) }
