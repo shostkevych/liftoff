@@ -74,7 +74,7 @@ final class NotificationServer {
             guard let sessionID = items.first(where: { $0.name == "session" })?.value,
                   let id = UUID(uuidString: sessionID),
                   let text = items.first(where: { $0.name == "text" })?.value else { return }
-            setResultSummary(sessionID: id, reply: text)
+            setResultLevel(sessionID: id, reply: text)
             return
         }
 
@@ -120,10 +120,10 @@ final class NotificationServer {
         }
     }
 
-    /// Summarize an agent's final reply into the session's sidebar result line.
-    /// Skipped when the user is already looking at that terminal.
+    /// Mark an unseen finished agent turn and triage its reply into the
+    /// sidebar dot color. Skipped when the user is already looking at it.
     @MainActor
-    private static func setResultSummary(sessionID: UUID, reply: String) {
+    private static func setResultLevel(sessionID: UUID, reply: String) {
         for store in AppStore.allStores {
             for project in store.projects {
                 guard let session = project.terminals.first(where: { $0.id == sessionID }),
@@ -135,12 +135,10 @@ final class NotificationServer {
                 session.needsAttention = true
                 session.resultLevel = .neutral
                 Task { @MainActor in
-                    guard let result = await AppStore.summarizeResult(reply) else { return }
+                    guard let level = await AppStore.classifyResult(reply) else { return }
                     // Dropped if the user focused the tab while we were waiting.
                     guard session.needsAttention else { return }
-                    session.resultSummary = result.message
-                    session.resultLevel = result.level
-                    session.resultSummaryAt = Date()
+                    session.resultLevel = level
                 }
                 return
             }

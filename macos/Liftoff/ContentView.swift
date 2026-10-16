@@ -351,12 +351,6 @@ struct ProjectSidebarRow: View {
             .map(\.resultLevel)
             .max()
     }
-    /// Newest agent-result summary among tabs the user isn't looking at.
-    private var latestResult: TerminalSession? {
-        project.terminals
-            .filter { $0.resultSummary != nil && !(isActive && $0.id == project.activeTerminalID) }
-            .max { ($0.resultSummaryAt ?? .distantPast) < ($1.resultSummaryAt ?? .distantPast) }
-    }
 
     var body: some View {
         VStack(spacing: 2) {
@@ -394,11 +388,9 @@ struct ProjectSidebarRow: View {
                 .strokeBorder(isActive ? color.opacity(0.28) : .clear, lineWidth: 1)
         )
         .animation(.snappy(duration: 0.18), value: isActive)
-        // Activating a tab dismisses its result summary.
+        // Activating a tab dismisses its result dot.
         .onChange(of: isActive ? project.activeTerminalID : nil, initial: true) { _, id in
             guard let id, let terminal = project.terminals.first(where: { $0.id == id }) else { return }
-            terminal.resultSummary = nil
-            terminal.resultSummaryAt = nil
             terminal.needsAttention = false
             terminal.resultLevel = .neutral
         }
@@ -426,22 +418,15 @@ struct ProjectSidebarRow: View {
                             .lineLimit(1)
                             .truncationMode(.middle)
                     }
-                    // Header height is fixed — a pending result replaces the tab count.
-                    if let summary = latestResult?.resultSummary {
-                        resultLine(summary)
-                    } else {
-                        HStack(spacing: 4) {
-                            if let repository = gitContext?.repository {
-                                Text(repository)
-                                Text("·")
-                            }
-                            Text("\(tabCount) tab\(tabCount == 1 ? "" : "s")")
+                    HStack(spacing: 4) {
+                        if let repository = gitContext?.repository {
+                            Text(repository)
+                            Text("·")
                         }
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
+                        Text("\(tabCount) tab\(tabCount == 1 ? "" : "s")")
                     }
-                } else if let summary = latestResult?.resultSummary {
-                    resultLine(summary)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
                 } else {
                     Text("\(tabCount) tab\(tabCount == 1 ? "" : "s") open")
                         .font(.system(size: 10))
@@ -525,15 +510,6 @@ struct ProjectSidebarRow: View {
                 store.closeProject(project)
             }
         }
-    }
-
-    private func resultLine(_ summary: String) -> some View {
-        Text(summary)
-            .font(.system(size: 10))
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .help(summary)
     }
 
     private func sidebarTab(_ terminal: TerminalSession) -> some View {
