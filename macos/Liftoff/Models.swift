@@ -373,6 +373,10 @@ final class TerminalSession: Identifiable {
     var runningAgent: Agent?
     /// True while the PTY is actively producing output (recent activity).
     var isBusy: Bool = false
+    /// One-line AI summary of the agent's last reply, shown in the sidebar
+    /// until the tab is activated.
+    var resultSummary: String?
+    var resultSummaryAt: Date?
 
     var displayTitle: String { customTitle ?? title }
 
@@ -1093,6 +1097,15 @@ final class AppStore {
     static func assistantChat(system: String, user: String) async -> String? {
         guard let configuration = AIAssistantSettings.shared.configuration else { return nil }
         return try? await AIClient.chat(configuration: configuration, system: system, user: user)
+    }
+
+    /// One-sentence sidebar summary of an agent's final reply, using the
+    /// AI Assistant provider and model from Settings.
+    static func summarizeResult(_ reply: String) async -> String? {
+        await assistantChat(
+            system: "Summarize the AI coding agent reply in ONE short sentence (max 12 words) for a sidebar status line. State what was done or the answer first; mention a proposed next step only if nothing was done. No preamble, no quotes.",
+            user: String(reply.prefix(3000))
+        )
     }
 
     /// Sidebar click: show only this project in the main area.

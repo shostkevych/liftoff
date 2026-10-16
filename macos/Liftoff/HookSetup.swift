@@ -3,6 +3,16 @@ import Foundation
 private enum HookEndpoint {
     static let marker = "localhost:\(48623 + BuildVariant.portOffset)"
     static let baseURL = "http://\(marker)"
+
+    /// Shared Stop-hook tail: sends the agent's final reply (capped) to the
+    /// `agentresult` route for the terminal named by $LIFTOFF_SESSION_ID.
+    /// Expects the hook's stdin JSON in $I; always exits 0.
+    static let resultCommand =
+        "R=$(printf '%s' \"$I\" | jq -r '.last_assistant_message // empty | .[0:3000]'); "
+        + "if [ -n \"$LIFTOFF_SESSION_ID\" ] && [ -n \"$R\" ]; then "
+        + "curl -sG \(baseURL)/agentresult "
+        + "--data-urlencode \"session=$LIFTOFF_SESSION_ID\" "
+        + "--data-urlencode \"text=$R\" >/dev/null 2>&1 || true; fi"
 }
 
 /// Manages Liftoff's Claude Code notification hook in ~/.claude/settings.json.
@@ -35,6 +45,7 @@ enum HookSetup {
         guard let data = try? Data(contentsOf: settingsFile(in: configDir)),
               let text = String(data: data, encoding: .utf8) else { return false }
         return text.contains(marker) && text.contains("worktitle")
+            && text.contains("agentresult")
     }
 
     /// Merge the Notification + Stop hooks into this folder's settings.json,
@@ -85,12 +96,14 @@ enum HookSetup {
         + "curl -sG \(HookEndpoint.baseURL)/notify "
         + "--data-urlencode \"title=$T\" --data-urlencode \"message=$M\" >/dev/null 2>&1"
 
-    /// Fired when Claude finishes a response.
+    /// Fired when Claude finishes a response. Also forwards the final reply to
+    /// the session's terminal so Liftoff can show a one-line result summary.
     private static let stopCommand =
         "I=$(cat); D=$(printf '%s' \"$I\" | jq -r '.cwd // empty'); "
         + "T=$([ -n \"$D\" ] && basename \"$D\" || echo 'Claude Code'); "
         + "curl -sG \(HookEndpoint.baseURL)/notify "
-        + "--data-urlencode \"title=$T\" --data-urlencode 'message=Finished' >/dev/null 2>&1"
+        + "--data-urlencode \"title=$T\" --data-urlencode 'message=Finished' >/dev/null 2>&1; "
+        + HookEndpoint.resultCommand
 
     /// Fired when the user submits a prompt — sends the prompt text as this
     /// session's "work title" so the tab reflects what Claude is doing. Routed
@@ -122,6 +135,7 @@ enum CodexHookSetup {
         return text.contains(marker)
             && text.contains("PermissionRequest")
             && text.contains("worktitle")
+            && text.contains("agentresult")
     }
 
     /// Merge Liftoff's hooks into Codex's hooks.json while preserving any
@@ -184,7 +198,8 @@ enum CodexHookSetup {
         + "T=$([ -n \"$D\" ] && basename \"$D\" || echo 'Codex'); "
         + "curl -sG \(HookEndpoint.baseURL)/notify "
         + "--data-urlencode \"title=$T\" --data-urlencode 'message=Finished' "
-        + "--data-urlencode 'source=codex' >/dev/null 2>&1 || true; printf '{}'"
+        + "--data-urlencode 'source=codex' >/dev/null 2>&1 || true; "
+        + HookEndpoint.resultCommand + "; printf '{}'"
 
     private static let userPromptSubmitCommand =
         "I=$(cat); P=$(printf '%s' \"$I\" | jq -r '.prompt // empty'); "

@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Network
 
@@ -22,18 +23,31 @@ final class NotificationServer {
         guard let listener = try? NWListener(using: params) else { return }
         listener.newConnectionHandler = { connection in
             connection.start(queue: .main)
-            connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, _, _ in
-                if let data, let request = String(data: data, encoding: .utf8) {
-                    Task { @MainActor in Self.handle(request: request) }
-                }
-                let response = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok"
-                connection.send(content: response.data(using: .utf8), completion: .contentProcessed { _ in
-                    connection.cancel()
-                })
-            }
+            Self.receiveRequest(on: connection, buffer: Data())
         }
         listener.start(queue: .main)
         self.listener = listener
+    }
+
+    /// Accumulate until the request head is complete — `agentresult` URLs carry
+    /// a whole agent reply and can span several TCP reads.
+    private nonisolated static func receiveRequest(on connection: NWConnection, buffer: Data) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, isComplete, error in
+            var buffer = buffer
+            if let data { buffer.append(data) }
+            let headEnd = buffer.range(of: Data("\r\n\r\n".utf8)) != nil
+            if !headEnd && !isComplete && error == nil && buffer.count < 256 * 1024 {
+                receiveRequest(on: connection, buffer: buffer)
+                return
+            }
+            if let request = String(data: buffer, encoding: .utf8) {
+                Task { @MainActor in Self.handle(request: request) }
+            }
+            let response = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok"
+            connection.send(content: response.data(using: .utf8), completion: .contentProcessed { _ in
+                connection.cancel()
+            })
+        }
     }
 
     @MainActor
@@ -51,6 +65,16 @@ final class NotificationServer {
                   let id = UUID(uuidString: sessionID),
                   let raw = items.first(where: { $0.name == "title" })?.value else { return }
             setWorkTitle(sessionID: id, prompt: raw)
+            return
+        }
+
+        // Stop hook: an agent finished — summarize its reply for the sidebar.
+        if components.path == "/agentresult" {
+            let items = components.queryItems ?? []
+            guard let sessionID = items.first(where: { $0.name == "session" })?.value,
+                  let id = UUID(uuidString: sessionID),
+                  let text = items.first(where: { $0.name == "text" })?.value else { return }
+            setResultSummary(sessionID: id, reply: text)
             return
         }
 
@@ -92,6 +116,32 @@ final class NotificationServer {
                     session.title = title
                     return
                 }
+            }
+        }
+    }
+
+    /// Summarize an agent's final reply into the session's sidebar result line.
+    /// Skipped when the user is already looking at that terminal.
+    @MainActor
+    private static func setResultSummary(sessionID: UUID, reply: String) {
+        for store in AppStore.allStores {
+            for project in store.projects {
+                guard let session = project.terminals.first(where: { $0.id == sessionID }),
+                      session.runningAgent == .claude || session.runningAgent == .codex
+                else { continue }
+                if store.activeProjectID == project.id
+                    && project.activeTerminalID == session.id
+                    && NSApp.isActive { return }
+                Task { @MainActor in
+                    guard let summary = await AppStore.summarizeResult(reply) else { return }
+                    // Dropped if the user focused the tab while we were waiting.
+                    if store.activeProjectID == project.id
+                        && project.activeTerminalID == session.id
+                        && NSApp.isActive { return }
+                    session.resultSummary = summary
+                    session.resultSummaryAt = Date()
+                }
+                return
             }
         }
     }
