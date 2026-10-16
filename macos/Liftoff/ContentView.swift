@@ -344,8 +344,12 @@ struct ProjectSidebarRow: View {
     private var isPinned: Bool { store.isPinned(project) }
     private var tabCount: Int { project.terminals.count }
     /// Any tab the user isn't looking at finished an agent turn unseen.
-    private var needsAttention: Bool {
-        project.terminals.contains { $0.needsAttention && !(isActive && $0.id == project.activeTerminalID) }
+    /// Most severe level among unseen finished tabs; nil when none.
+    private var attentionLevel: ResultLevel? {
+        project.terminals
+            .filter { $0.needsAttention && !(isActive && $0.id == project.activeTerminalID) }
+            .map(\.resultLevel)
+            .max()
     }
     /// Newest agent-result summary among tabs the user isn't looking at.
     private var latestResult: TerminalSession? {
@@ -396,6 +400,7 @@ struct ProjectSidebarRow: View {
             terminal.resultSummary = nil
             terminal.resultSummaryAt = nil
             terminal.needsAttention = false
+            terminal.resultLevel = .neutral
         }
         .task(id: isActive) {
             if isActive, !project.isStandaloneTerminal, gitContext == nil {
@@ -445,9 +450,9 @@ struct ProjectSidebarRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             // Trailing cluster, vertically centered: tag, then busy/pin.
-            if needsAttention {
-                Circle().fill(.red).frame(width: 7, height: 7)
-                    .help("Agent finished — needs attention")
+            if let level = attentionLevel {
+                Circle().fill(level.color).frame(width: 7, height: 7)
+                    .help("Agent finished")
             }
             if let tag = store.tag(for: project), tag.hasLabel {
                 Text(tag.label)
@@ -606,7 +611,7 @@ private struct SidebarTerminalRow: View {
             Spacer(minLength: 2)
 
             if terminal.needsAttention && !isActive {
-                Circle().fill(.red).frame(width: 6, height: 6)
+                Circle().fill(terminal.resultLevel.color).frame(width: 6, height: 6)
             }
             if hovering {
                 Button(action: close) {
