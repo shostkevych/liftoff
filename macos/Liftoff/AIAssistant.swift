@@ -2,14 +2,18 @@ import Foundation
 import Observation
 
 enum AIProvider: String, CaseIterable, Identifiable, Codable, Sendable {
-    case openAI, anthropic, grok, google
+    case openAI, anthropic, grok, google, openAICompatible
     var id: Self { self }
+    /// Self-hosted / third-party endpoint speaking OpenAI Chat Completions
+    /// (AI-Gate, Ollama, vLLM, LM Studio…). The key is optional.
+    var isCustom: Bool { self == .openAICompatible }
     var title: String {
         switch self {
         case .openAI: "OpenAI"
         case .anthropic: "Anthropic"
         case .grok: "Grok (xAI)"
         case .google: "Google"
+        case .openAICompatible: "OpenAI-compatible"
         }
     }
     var baseURL: String {
@@ -18,16 +22,18 @@ enum AIProvider: String, CaseIterable, Identifiable, Codable, Sendable {
         case .anthropic: "https://api.anthropic.com/v1"
         case .grok: "https://api.x.ai/v1"
         case .google: "https://generativelanguage.googleapis.com/v1beta"
+        case .openAICompatible: AIAssistantSettings.customBaseURL
         }
     }
-    var keyURL: URL {
+    var keyURL: URL? {
         let address = switch self {
         case .openAI: "https://platform.openai.com/api-keys"
         case .anthropic: "https://platform.claude.com/settings/keys"
         case .grok: "https://console.x.ai"
         case .google: "https://aistudio.google.com/apikey"
+        case .openAICompatible: ""
         }
-        return URL(string: address)!
+        return URL(string: address)
     }
     var keychainAccount: String { "aiAssistant.\(rawValue).apiKey" }
 }
@@ -46,6 +52,13 @@ final class AIAssistantSettings {
     private(set) var models: [String: String]
     private let defaults = UserDefaults.standard
     private let prefix = BuildVariant.settingsDirectoryName + ".aiAssistant."
+    private nonisolated static let customBaseURLKey =
+        BuildVariant.settingsDirectoryName + ".aiAssistant.customBaseURL"
+    /// Base URL (…/v1) for the OpenAI-compatible provider, without trailing slash.
+    nonisolated static var customBaseURL: String {
+        (UserDefaults.standard.string(forKey: customBaseURLKey) ?? "")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+    }
 
     private init() {
         let defaults = UserDefaults.standard
@@ -59,13 +72,20 @@ final class AIAssistantSettings {
         let model = model(for: provider)
         guard !model.isEmpty else { return nil }
         let key = key(for: provider)
-        guard !key.isEmpty else { return nil }
+        if provider.isCustom {
+            guard !Self.customBaseURL.isEmpty else { return nil }
+        } else {
+            guard !key.isEmpty else { return nil }
+        }
         return AIConfiguration(provider: provider, model: model, key: key)
     }
-    func save(provider: AIProvider, model: String, key: String) throws {
-        guard KeychainHelper.store(key: provider.keychainAccount, value: key) else {
+    func save(provider: AIProvider, model: String, key: String, baseURL: String? = nil) throws {
+        if key.isEmpty && provider.isCustom {
+            _ = KeychainHelper.delete(key: provider.keychainAccount)
+        } else if !KeychainHelper.store(key: provider.keychainAccount, value: key) {
             throw AIClient.Failure("Could not save the API key in Keychain. Your previous settings were kept.")
         }
+        if let baseURL { defaults.set(baseURL, forKey: Self.customBaseURLKey) }
         models[provider.rawValue] = model
         self.provider = provider
         defaults.set(models, forKey: prefix + "models")
@@ -92,13 +112,19 @@ enum AIClient {
     }
     private static let session = URLSession(configuration: .ephemeral)
 
-    private static func request(provider: AIProvider, key: String, path: String) -> URLRequest {
-        var request = URLRequest(url: URL(string: provider.baseURL + path)!)
+    private static func request(provider: AIProvider, key: String, path: String, baseURL: String? = nil) -> URLRequest {
+        // A malformed custom base URL fails the request instead of crashing.
+        let url = URL(string: (baseURL ?? provider.baseURL) + path) ?? URL(fileURLWithPath: "/")
+        var request = URLRequest(url: url)
         request.timeoutInterval = 60
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         switch provider {
         case .openAI, .grok:
             request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        case .openAICompatible:
+            if !key.isEmpty { request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization") }
+            // Client identity required by AI-Gate; other servers ignore it.
+            request.setValue("liftoff", forHTTPHeaderField: "X-AI-Gate-Client")
         case .anthropic:
             request.setValue(key, forHTTPHeaderField: "x-api-key")
             request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
@@ -131,13 +157,15 @@ enum AIClient {
         return json
     }
 
-    static func listModels(provider: AIProvider, key: String) async throws -> [Model] {
+    static func listModels(provider: AIProvider, key: String, baseURL: String? = nil) async throws -> [Model] {
+        let root = baseURL ?? provider.baseURL
+        guard URL(string: root + "/models") != nil else { throw Failure("Invalid base URL.") }
         var result: [Model] = []
         var cursor: String?
         var seenCursors = Set<String>()
         repeat {
             try Task.checkCancellation()
-            var components = URLComponents(string: provider.baseURL + "/models")!
+            var components = URLComponents(string: root + "/models")!
             switch provider {
             case .anthropic:
                 components.queryItems = [URLQueryItem(name: "limit", value: "1000")]
@@ -147,7 +175,7 @@ enum AIClient {
                 if let cursor { components.queryItems?.append(URLQueryItem(name: "pageToken", value: cursor)) }
             default: break
             }
-            var request = request(provider: provider, key: key, path: "/models")
+            var request = request(provider: provider, key: key, path: "/models", baseURL: root)
             request.url = components.url
             let json = try await send(request)
             let rows = json[provider == .google ? "models" : "data"] as? [[String: Any]] ?? []
@@ -186,7 +214,7 @@ enum AIClient {
         case .openAI:
             path = "/responses"
             body = ["model": configuration.model, "instructions": system, "input": user, "store": false]
-        case .grok:
+        case .grok, .openAICompatible:
             path = "/chat/completions"
             body = ["model": configuration.model, "messages": [["role": "system", "content": system], ["role": "user", "content": user]], "stream": false]
         case .anthropic:
@@ -209,7 +237,7 @@ enum AIClient {
                 .flatMap { $0["content"] as? [[String: Any]] ?? [] }
                 .filter { $0["type"] as? String == "output_text" }
                 .compactMap { $0["text"] as? String }.joined(separator: "\n")
-        case .grok:
+        case .grok, .openAICompatible:
             let choices = json["choices"] as? [[String: Any]]
             text = (choices?.first?["message"] as? [String: Any])?["content"] as? String ?? ""
         case .anthropic:

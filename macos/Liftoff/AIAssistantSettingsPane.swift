@@ -4,6 +4,8 @@ struct AIAssistantSettingsPane: View {
     @State private var settings = AIAssistantSettings.shared
     @State private var provider: AIProvider = .openAI
     @State private var key = ""
+    @State private var baseURL = ""
+    @State private var savedBaseURL = ""
     @State private var model = ""
     @State private var savedKey = ""
     @State private var savedModel = ""
@@ -19,7 +21,7 @@ struct AIAssistantSettingsPane: View {
             VStack(alignment: .leading, spacing: 22) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("AI Assistant").font(.system(size: 24, weight: .semibold))
-                    Text("Choose the provider and model for terminal summaries and welcome greetings.")
+                    Text("Choose the provider and model for terminal summaries, agent result lines, and welcome greetings.")
                         .foregroundStyle(.secondary)
                 }
                 if !settings.model(for: settings.provider).isEmpty {
@@ -31,11 +33,27 @@ struct AIAssistantSettingsPane: View {
                         ForEach(AIProvider.allCases) { Text($0.title).tag($0) }
                     }
                     .onChange(of: provider) { _, _ in loadSavedProvider() }
+                    if provider.isCustom {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Base URL").fontWeight(.medium)
+                            TextField("https://host/v1", text: $baseURL)
+                                .textFieldStyle(.roundedBorder)
+                                .onChange(of: baseURL) { _, _ in
+                                    cancelLoad()
+                                    models = []
+                                    message = nil
+                                }
+                            Text("Any server implementing OpenAI /models and /chat/completions (AI-Gate, Ollama, vLLM, LM Studio).")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("API key").fontWeight(.medium)
+                            Text(provider.isCustom ? "API key (optional)" : "API key").fontWeight(.medium)
                             Spacer()
-                            Link("Get an API key ↗", destination: provider.keyURL)
+                            if let url = provider.keyURL {
+                                Link("Get an API key ↗", destination: url)
+                            }
                         }
                         SecureField("Enter your \(provider.title) API key", text: $key)
                             .textFieldStyle(.roundedBorder)
@@ -49,7 +67,7 @@ struct AIAssistantSettingsPane: View {
                     }
                     HStack {
                         Button(loading ? "Loading Models…" : "Load Models", action: fetchModels)
-                            .disabled(loading || key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            .disabled(loading || !hasCredentials)
                         if loading { ProgressView().controlSize(.small) }
                     }
                     Picker("Model", selection: $model) {
@@ -72,14 +90,14 @@ struct AIAssistantSettingsPane: View {
                     Spacer()
                     Button("Save") { save() }
                         .buttonStyle(.borderedProminent)
-                        .disabled(loading || key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isEmpty || !canSave)
+                        .disabled(loading || !hasCredentials || model.isEmpty || !canSave)
                 }
                 if let message {
                     Label(message, systemImage: isError ? "exclamationmark.circle" : "checkmark.circle")
                         .foregroundStyle(isError ? Color.orange : Color.green)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Text("Only selected terminal text is sent when you request a summary. Greetings use a short prompt without terminal content. AI features stay off until a provider, key, and model are saved.")
+                Text("Only selected terminal text is sent when you request a summary, plus each finished Claude/Codex reply for its one-line sidebar result. Greetings use a short prompt without terminal content. AI features stay off until a provider, key, and model are saved.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -89,9 +107,17 @@ struct AIAssistantSettingsPane: View {
         .onDisappear { cancelLoad() }
     }
 
+    private var trimmedBaseURL: String {
+        baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+    }
+    private var hasCredentials: Bool {
+        provider.isCustom
+            ? URL(string: trimmedBaseURL)?.scheme?.hasPrefix("http") == true
+            : !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
     private var canSave: Bool {
         models.contains { $0.id == model } ||
-            (model == savedModel && key == savedKey)
+            (model == savedModel && key == savedKey && trimmedBaseURL == savedBaseURL)
     }
     private func cancelLoad() {
         loadTask?.cancel()
@@ -105,6 +131,8 @@ struct AIAssistantSettingsPane: View {
         savedModel = settings.model(for: provider)
         key = savedKey
         model = savedModel
+        savedBaseURL = AIAssistantSettings.customBaseURL
+        baseURL = savedBaseURL
         models = []
         message = nil
     }
@@ -113,11 +141,14 @@ struct AIAssistantSettingsPane: View {
         let token = generation
         let selectedProvider = provider
         let enteredKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        let enteredBaseURL = trimmedBaseURL
         loading = true
         message = nil
         loadTask = Task { @MainActor in
             do {
-                let available = try await AIClient.listModels(provider: selectedProvider, key: enteredKey)
+                let available = try await AIClient.listModels(
+                    provider: selectedProvider, key: enteredKey,
+                    baseURL: selectedProvider.isCustom ? enteredBaseURL : nil)
                 guard !Task.isCancelled, generation == token else { return }
                 models = available
                 if !available.contains(where: { $0.id == model }) { model = "" }
@@ -134,8 +165,10 @@ struct AIAssistantSettingsPane: View {
     }
     private func save() {
         do {
-            try settings.save(provider: provider, model: model, key: key.trimmingCharacters(in: .whitespacesAndNewlines))
+            try settings.save(provider: provider, model: model, key: key.trimmingCharacters(in: .whitespacesAndNewlines),
+                              baseURL: provider.isCustom ? trimmedBaseURL : nil)
             savedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+            if provider.isCustom { savedBaseURL = trimmedBaseURL }
             savedModel = model
             message = "Saved. AI Assistant uses \(provider.title) · \(model)."
             isError = false
