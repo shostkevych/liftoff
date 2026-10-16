@@ -343,6 +343,10 @@ struct ProjectSidebarRow: View {
     private var isBusy: Bool { project.terminals.contains { $0.isBusy } }
     private var isPinned: Bool { store.isPinned(project) }
     private var tabCount: Int { project.terminals.count }
+    /// Any tab the user isn't looking at finished an agent turn unseen.
+    private var needsAttention: Bool {
+        project.terminals.contains { $0.needsAttention && !(isActive && $0.id == project.activeTerminalID) }
+    }
     /// Newest agent-result summary among tabs the user isn't looking at.
     private var latestResult: TerminalSession? {
         project.terminals
@@ -391,6 +395,7 @@ struct ProjectSidebarRow: View {
             guard let id, let terminal = project.terminals.first(where: { $0.id == id }) else { return }
             terminal.resultSummary = nil
             terminal.resultSummaryAt = nil
+            terminal.needsAttention = false
         }
         .task(id: isActive) {
             if isActive, !project.isStandaloneTerminal, gitContext == nil {
@@ -440,6 +445,10 @@ struct ProjectSidebarRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             // Trailing cluster, vertically centered: tag, then busy/pin.
+            if needsAttention {
+                Circle().fill(.red).frame(width: 7, height: 7)
+                    .help("Agent finished — needs attention")
+            }
             if let tag = store.tag(for: project), tag.hasLabel {
                 Text(tag.label)
                     .font(.system(size: 9, weight: .bold, design: .rounded))
@@ -596,6 +605,9 @@ private struct SidebarTerminalRow: View {
                 .truncationMode(.tail)
             Spacer(minLength: 2)
 
+            if terminal.needsAttention && !isActive {
+                Circle().fill(.red).frame(width: 6, height: 6)
+            }
             if hovering {
                 Button(action: close) {
                     Image(systemName: "xmark")

@@ -132,12 +132,11 @@ final class NotificationServer {
                 if store.activeProjectID == project.id
                     && project.activeTerminalID == session.id
                     && NSApp.isActive { return }
+                session.needsAttention = true
                 Task { @MainActor in
                     guard let summary = await AppStore.summarizeResult(reply) else { return }
                     // Dropped if the user focused the tab while we were waiting.
-                    if store.activeProjectID == project.id
-                        && project.activeTerminalID == session.id
-                        && NSApp.isActive { return }
+                    guard session.needsAttention else { return }
                     session.resultSummary = summary
                     session.resultSummaryAt = Date()
                 }

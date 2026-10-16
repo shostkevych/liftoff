@@ -375,6 +375,9 @@ final class TerminalSession: Identifiable {
     var isBusy: Bool = false
     /// One-line AI summary of the agent's last reply, shown in the sidebar
     /// until the tab is activated.
+    /// Set when the agent finishes a turn the user didn't watch (red dot);
+    /// cleared on visit along with `resultSummary`.
+    var needsAttention: Bool = false
     var resultSummary: String?
     var resultSummaryAt: Date?
 
