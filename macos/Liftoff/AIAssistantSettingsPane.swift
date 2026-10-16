@@ -10,6 +10,8 @@ struct AIAssistantSettingsPane: View {
     @State private var savedKey = ""
     @State private var savedModel = ""
     @State private var models: [AIClient.Model] = []
+    @State private var modelSearch = ""
+    @State private var testing = false
     @State private var loading = false
     @State private var message: String?
     @State private var isError = false
@@ -60,6 +62,7 @@ struct AIAssistantSettingsPane: View {
                             .onChange(of: key) { _, _ in
                                 cancelLoad()
                                 models = []
+                                modelSearch = ""
                                 message = nil
                             }
                         Text("Keys are stored in your Mac’s Keychain, separately for each provider.")
@@ -70,12 +73,16 @@ struct AIAssistantSettingsPane: View {
                             .disabled(loading || !hasCredentials)
                         if loading { ProgressView().controlSize(.small) }
                     }
+                    if models.count > 1 {
+                        TextField("Search models", text: $modelSearch)
+                            .textFieldStyle(.roundedBorder)
+                    }
                     Picker("Model", selection: $model) {
                         Text("Choose a model").tag("")
                         if !model.isEmpty && !models.contains(where: { $0.id == model }) {
                             Text(model + " (saved)").tag(model)
                         }
-                        ForEach(models) { item in
+                        ForEach(filteredModels) { item in
                             Text(item.name == item.id ? item.id : "\(item.name) · \(item.id)").tag(item.id)
                         }
                     }
@@ -88,6 +95,9 @@ struct AIAssistantSettingsPane: View {
                 HStack {
                     Button("Remove Saved Key", role: .destructive) { removeKey() }
                     Spacer()
+                    if testing { ProgressView().controlSize(.small) }
+                    Button("Test") { test() }
+                        .disabled(loading || testing || !hasCredentials || model.isEmpty)
                     Button("Save") { save() }
                         .buttonStyle(.borderedProminent)
                         .disabled(loading || !hasCredentials || model.isEmpty || !canSave)
@@ -107,6 +117,15 @@ struct AIAssistantSettingsPane: View {
         .onDisappear { cancelLoad() }
     }
 
+    /// Search filter; the selected model always stays so the picker can show it.
+    private var filteredModels: [AIClient.Model] {
+        let query = modelSearch.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return models }
+        return models.filter {
+            $0.id == model || $0.id.localizedCaseInsensitiveContains(query)
+                || $0.name.localizedCaseInsensitiveContains(query)
+        }
+    }
     private var trimmedBaseURL: String {
         baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
     }
@@ -161,6 +180,29 @@ struct AIAssistantSettingsPane: View {
                 message = error.localizedDescription
                 isError = true
             }
+        }
+    }
+    /// Send a tiny prompt with the unsaved form values and show the reply.
+    private func test() {
+        let configuration = AIConfiguration(
+            provider: provider, model: model,
+            key: key.trimmingCharacters(in: .whitespacesAndNewlines),
+            baseURL: provider.isCustom ? trimmedBaseURL : nil)
+        testing = true
+        message = nil
+        Task { @MainActor in
+            do {
+                let reply = try await AIClient.chat(
+                    configuration: configuration,
+                    system: "Reply with one short sentence.",
+                    user: "Say hello to a Liftoff user.")
+                message = "Test reply: \(reply)"
+                isError = false
+            } catch {
+                message = error.localizedDescription
+                isError = true
+            }
+            testing = false
         }
     }
     private func save() {

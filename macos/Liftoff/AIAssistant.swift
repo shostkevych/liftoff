@@ -42,6 +42,8 @@ struct AIConfiguration: Sendable {
     let provider: AIProvider
     let model: String
     let key: String
+    /// Overrides the provider's base URL (unsaved custom URL in Test).
+    var baseURL: String? = nil
 }
 
 /// Shared across windows; terminal-layout persistence never rewrites AI keys.
@@ -225,7 +227,7 @@ enum AIClient {
             path = "/models/\(model):generateContent"
             body = ["systemInstruction": ["parts": [["text": system]]], "contents": [["role": "user", "parts": [["text": user]]]]]
         }
-        var request = request(provider: provider, key: configuration.key, path: path)
+        var request = request(provider: provider, key: configuration.key, path: path, baseURL: configuration.baseURL)
         request.httpMethod = "POST"
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let json = try await send(request)
