@@ -105,6 +105,8 @@ private struct LiftoffSettingsView: View {
                     PromptShortcutsSettingsPane()
                 case .projectTags:
                     ProjectTagsSettingsPane()
+                case .notifications:
+                    NotificationsSettingsPane()
                 case .about:
                     AboutSettingsPane()
                 }
@@ -118,6 +120,7 @@ private struct LiftoffSettingsView: View {
 private enum SettingsSection: String, CaseIterable, Identifiable {
     case promptShortcuts
     case projectTags
+    case notifications
     case about
 
     var id: Self { self }
@@ -126,6 +129,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .promptShortcuts: "Prompt Shortcuts"
         case .projectTags: "Project Tags"
+        case .notifications: "Notifications"
         case .about: "About"
         }
     }
@@ -134,7 +138,63 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .promptShortcuts: "text.quote"
         case .projectTags: "tag"
+        case .notifications: "bell.badge"
         case .about: "info.circle"
+        }
+    }
+}
+
+private struct NotificationsSettingsPane: View {
+    @State private var customName = NotificationManager.shared.customSoundName
+    @State private var error: String?
+
+    var body: some View {
+        Form {
+            Section {
+                LabeledContent("Sound") {
+                    Text(customName == nil ? "Liftoff (default)" : "Custom upload")
+                        .foregroundStyle(.secondary)
+                }
+                HStack(spacing: 8) {
+                    Button("Choose Sound…", action: choose)
+                    Button {
+                        NotificationManager.shared.playCurrentSound()
+                    } label: {
+                        Label("Play", systemImage: "play.fill")
+                    }
+                    Spacer()
+                    Button("Reset to Default") {
+                        NotificationManager.shared.resetSound()
+                        customName = nil
+                    }
+                    .disabled(customName == nil)
+                }
+                if let error {
+                    Text(error).font(.system(size: 11)).foregroundStyle(.red)
+                }
+            } header: {
+                Text("Notification Sound")
+            } footer: {
+                Text("Upload an MP3 (or M4A, WAV, AIFF). It's converted for macOS notifications and trimmed to 29 seconds.")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private func choose() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.mp3, .mpeg4Audio, .wav, .aiff, .audio]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try NotificationManager.shared.setCustomSound(from: url)
+            customName = NotificationManager.shared.customSoundName
+            error = nil
+            NotificationManager.shared.playCurrentSound()
+        } catch {
+            self.error = "Couldn't use that file: \(error.localizedDescription)"
         }
     }
 }
