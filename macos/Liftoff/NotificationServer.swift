@@ -30,7 +30,7 @@ final class NotificationServer {
     }
 
     /// Accumulate until the request (head plus Content-Length body) is
-    /// complete — `agentresult` URLs and MCP bodies can span several reads.
+    /// complete — long hook URLs and MCP bodies can span several reads.
     private nonisolated static func receiveRequest(on connection: NWConnection, buffer: Data) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, isComplete, error in
             var buffer = buffer
@@ -66,16 +66,6 @@ final class NotificationServer {
                   let id = UUID(uuidString: sessionID),
                   let raw = items.first(where: { $0.name == "title" })?.value else { return }
             setWorkTitle(sessionID: id, prompt: raw)
-            return
-        }
-
-        // Stop hook: an agent finished — summarize its reply for the sidebar.
-        if components.path == "/agentresult" {
-            let items = components.queryItems ?? []
-            guard let sessionID = items.first(where: { $0.name == "session" })?.value,
-                  let id = UUID(uuidString: sessionID),
-                  let text = items.first(where: { $0.name == "text" })?.value else { return }
-            setResultLevel(sessionID: id, reply: text)
             return
         }
 
@@ -117,31 +107,6 @@ final class NotificationServer {
                     session.title = title
                     return
                 }
-            }
-        }
-    }
-
-    /// Mark an unseen finished agent turn and triage its reply into the
-    /// sidebar dot color. Skipped when the user is already looking at it.
-    @MainActor
-    private static func setResultLevel(sessionID: UUID, reply: String) {
-        for store in AppStore.allStores {
-            for project in store.projects {
-                guard let session = project.terminals.first(where: { $0.id == sessionID }),
-                      session.runningAgent == .claude || session.runningAgent == .codex
-                else { continue }
-                if store.activeProjectID == project.id
-                    && project.activeTerminalID == session.id
-                    && NSApp.isActive { return }
-                session.needsAttention = true
-                session.resultLevel = .neutral
-                Task { @MainActor in
-                    guard let level = await AppStore.classifyResult(reply) else { return }
-                    // Dropped if the user focused the tab while we were waiting.
-                    guard session.needsAttention else { return }
-                    session.resultLevel = level
-                }
-                return
             }
         }
     }
@@ -214,7 +179,7 @@ struct HTTPResponse {
 // MARK: - MCP (Streamable HTTP, JSON responses only)
 
 /// Minimal MCP server at POST /mcp so agents can push their own notifications
-/// and sidebar dots. The terminal is identified by the `X-Liftoff-Session`
+/// and tab titles. The terminal is identified by the `X-Liftoff-Session`
 /// header, which agent configs fill from $LIFTOFF_SESSION_ID.
 @MainActor
 enum LiftoffMCP {
@@ -257,12 +222,10 @@ enum LiftoffMCP {
     /// Injected into the agent's system prompt, so the behavior travels with
     /// the server instead of every CLAUDE.md / AGENTS.md copy.
     private static let instructions = """
-        You are running inside a Liftoff terminal tab. Liftoff shows the user a sidebar dot per tab \
-        and desktop notifications. Rules:
+        You are running inside a Liftoff terminal tab. Liftoff can show the user desktop notifications. Rules:
         - When you finish a task that took more than a few steps, call `notify` once at the end with a \
-        one-sentence result and a level: success (done, verified), attention (done but the user must \
-        review/decide/act), critical (failed, broken, or something dangerous found), neutral (informational).
-        - Call `notify` immediately with level attention when you are blocked and need the user's input.
+        one-sentence result (say clearly if it failed or needs the user's review).
+        - Call `notify` immediately when you are blocked and need the user's input.
         - Do not call `notify` for trivial replies or after every message.
         - Call `set_tab_title` with a short (2-5 word) title when you start on a new task.
         """
@@ -270,16 +233,13 @@ enum LiftoffMCP {
     private static let tools: [[String: Any]] = [
         [
             "name": "notify",
-            "description": "Send the user a macOS notification from this Liftoff terminal and optionally "
-                + "color its sidebar dot. Use for important results the user should see while away.",
+            "description": "Send the user a macOS notification from this Liftoff terminal. "
+                + "Use for important results the user should see while away.",
             "inputSchema": [
                 "type": "object",
                 "properties": [
                     "message": ["type": "string", "description": "Notification body."],
-                    "title": ["type": "string", "description": "Optional title; defaults to the project name."],
-                    "level": ["type": "string", "enum": ["neutral", "success", "attention", "critical"],
-                              "description": "Sidebar dot color: neutral (white), success (green), "
-                                  + "attention (yellow), critical (red). Omit to leave the dot unchanged."]
+                    "title": ["type": "string", "description": "Optional title; defaults to the project name."]
                 ],
                 "required": ["message"]
             ]
@@ -301,23 +261,12 @@ enum LiftoffMCP {
             guard let message = args["message"] as? String, !message.isEmpty else {
                 return toolResult("Missing `message`.", isError: true)
             }
-            let located = session.flatMap(locate)
             let title = (args["title"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-                ?? located?.1.folder.lastPathComponent ?? "Liftoff"
+                ?? session.flatMap(locate)?.project.folder.lastPathComponent ?? "Liftoff"
             NotificationManager.shared.post(title: title, message: message)
-            if let level = (args["level"] as? String).flatMap(ResultLevel.init(rawValue:)),
-               let located {
-                let (store, project, terminal) = located
-                let focused = store.activeProjectID == project.id
-                    && project.activeTerminalID == terminal.id && NSApp.isActive
-                if !focused {
-                    terminal.needsAttention = true
-                    terminal.resultLevel = level
-                }
-            }
             return toolResult("Notification sent.")
         case "set_tab_title":
-            guard let title = args["title"] as? String, let terminal = session.flatMap(locate)?.2 else {
+            guard let title = args["title"] as? String, let terminal = session.flatMap(locate)?.terminal else {
                 return toolResult("No title or not running inside a Liftoff terminal.", isError: true)
             }
             terminal.title = String(title.prefix(60))
@@ -327,11 +276,11 @@ enum LiftoffMCP {
         }
     }
 
-    private static func locate(_ id: UUID) -> (AppStore, Project, TerminalSession)? {
+    private static func locate(_ id: UUID) -> (project: Project, terminal: TerminalSession)? {
         for store in AppStore.allStores {
             for project in store.projects {
                 if let terminal = project.terminals.first(where: { $0.id == id }) {
-                    return (store, project, terminal)
+                    return (project, terminal)
                 }
             }
         }

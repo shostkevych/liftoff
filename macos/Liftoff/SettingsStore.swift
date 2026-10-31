@@ -1,7 +1,7 @@
 import Foundation
 
 /// App settings live in the current build variant's settings directory.
-/// Sensitive values (webPassword and AI provider keys) are stored in the system Keychain.
+/// Sensitive values (webPassword) are stored in the system Keychain.
 enum SettingsStore {
     struct Settings: Codable {
         var recentProjectPaths: [String] = []

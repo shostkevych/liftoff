@@ -91,8 +91,6 @@ struct LiftoffHint: Identifiable, Equatable {
               message: "Press CMD + R to give the active terminal a stable custom name."),
         .init(id: 8, title: "Drop files into the shell",
               message: "Drag files or folders onto a terminal to insert their shell-escaped paths."),
-        .init(id: 9, title: "Summarize terminal output",
-              message: "Select terminal output and press CMD + F for a concise AI summary."),
         .init(id: 10, title: "Write multiline prompts",
               message: "Press SHIFT + RETURN to add a newline without submitting in supported agentic CLIs."),
         .init(id: 11, title: "Reopen projects on launch",
@@ -220,62 +218,6 @@ struct AboutPopup: View {
             .keyboardShortcut(.escape, modifiers: [])
         }
         .shadow(color: .black.opacity(0.5), radius: 18, y: 6)
-    }
-}
-
-/// Cmd+F result popup: AI summary of the selected terminal text.
-struct SummaryPopup: View {
-    @Environment(AppStore.self) private var store
-    let state: AppStore.SummaryState
-    let dismiss: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            PopupHeader(title: "Summary", icon: "sparkles", dismiss: dismiss)
-            switch state {
-            case .loading:
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text("Summarizing…")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.vertical, 12)
-            case .result(let text):
-                MarkdownText(markdown: text)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                attribution
-            case .noSelection:
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Select some text in a terminal first.")
-                    Text("Make sure Liftoff can capture the content. Some CLI tools use rich terminal rendering that isn’t supported yet — we’re working on better handling.")
-                        .foregroundStyle(.tertiary)
-                }
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-            case .failed(let message):
-                Text(message)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(16)
-        .modifier(PopupCard(width: 560))
-    }
-
-    /// Footer crediting the inference provider and model.
-    private var attribution: some View {
-        HStack(spacing: 5) {
-            Image(systemName: "bolt.fill")
-                .font(.system(size: 9))
-            Text(store.summaryAttribution).font(.system(size: 10.5, weight: .semibold, design: .monospaced))
-        }
-        .font(.system(size: 10.5))
-        .foregroundStyle(Color.brand)
-        .padding(.top, 2)
     }
 }
 
@@ -710,7 +652,7 @@ struct HookSetupPopup: View {
         }
         let path = (file.path as NSString).abbreviatingWithTildeInPath
         return "Liftoff MCP server, so \(agentName) can send its own notifications, "
-            + "color the sidebar dot and rename its tab (in \(path))"
+            + "and rename its tab (in \(path))"
     }
 
     private var setupDescription: String {
@@ -804,8 +746,7 @@ struct HelpPopup: View {
             ("⌘← / ⌘→", "Line start / end"),
             ("⌥⌫ / ⌘⌫", "Delete word / whole line"),
         ]),
-        ("AI", [
-            ("⌘F", "Summarize selected text with Gemma"),
+        ("Agents", [
             ("Notifications", "Claude Code, Codex, and opencode push per project via hooks"),
         ]),
     ]

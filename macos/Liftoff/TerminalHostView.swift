@@ -119,24 +119,6 @@ final class FocusTrackingTerminalView: LocalProcessTerminalView {
         onOutput?(slice)
     }
 
-    // MARK: OSC 52 clipboard capture (for Summarize on mouse-reporting TUIs)
-
-    /// The last text a TUI copied via OSC 52, plus the pasteboard changeCount at
-    /// that moment. Mouse-reporting agents (opencode, grok) copy the selection
-    /// themselves instead of letting the terminal select, so Summarize falls back
-    /// to this — but only while it's still the top of the clipboard, so we never
-    /// summarize unrelated content the user copied afterwards.
-    @MainActor static var lastTerminalCopyText: String?
-    @MainActor static var lastTerminalCopyChangeCount: Int = -1
-
-    override func clipboardCopy(source: Terminal, content: Data) {
-        super.clipboardCopy(source: source, content: content)   // writes NSPasteboard
-        if let str = String(data: content, encoding: .utf8), !str.isEmpty {
-            Self.lastTerminalCopyText = str
-            Self.lastTerminalCopyChangeCount = NSPasteboard.general.changeCount
-        }
-    }
-
     // MARK: Busy (output-activity) tracking
 
     /// Fires on the main thread when the terminal transitions between
@@ -389,18 +371,12 @@ final class FocusTrackingTerminalView: LocalProcessTerminalView {
         selectAllItem.target = self
         menu.addItem(selectAllItem)
 
-        let summarizeItem = NSMenuItem(title: "Summarize Selection", action: #selector(contextSummarize), keyEquivalent: "")
-        summarizeItem.target = self
-        summarizeItem.isEnabled = hasSelection
-        menu.addItem(summarizeItem)
-
         return menu
     }
 
     @objc private func contextCopy() { copy(self) }
     @objc private func contextPaste() { paste(self) }
     @objc private func contextSelectAll() { selectAll(self) }
-    @objc private func contextSummarize() { store?.summarizeSelection(text: getSelection()) }
 
     // MARK: Drag & drop of files — pastes shell-escaped paths.
 
@@ -538,8 +514,6 @@ final class FocusTrackingTerminalView: LocalProcessTerminalView {
                 store.splitActiveTerminal(); return true
             case 14: // E -> expand focused split terminal
                 store.toggleExpandActiveTerminal(); return true
-            case 3: // F -> summarize selection (capture it now, before focus shifts)
-                store.summarizeSelection(text: getSelection()); return true
             case 24: // = -> zoom in
                 store.zoomTerminals(by: 1); return true
             case 27: // - -> zoom out

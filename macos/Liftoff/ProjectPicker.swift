@@ -69,16 +69,6 @@ struct ProjectPicker: View {
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .opacity(appeared ? 1 : 0)
-            if let greeting = store.greeting {
-                Text(greeting)
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .italic()
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 520)
-                    .padding(.bottom, 12)
-                    .transition(.opacity)
-            }
             HStack(spacing: 12) {
                 Button {
                     if let url = store.pickFolder() {
@@ -119,7 +109,6 @@ struct ProjectPicker: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.easeInOut(duration: 0.4), value: store.greeting)
         .animation(.easeInOut(duration: 0.35), value: appeared)
         // Type anywhere on this screen to start filtering recents.
         .focusable(!store.storedProjectURLs.isEmpty)
@@ -140,7 +129,6 @@ struct ProjectPicker: View {
             return .handled
         }
         .onAppear {
-            store.loadGreeting()
             appeared = true
             // Hold key focus so the first keystroke opens the filter.
             DispatchQueue.main.async { rootFocused = true }

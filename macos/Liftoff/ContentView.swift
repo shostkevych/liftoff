@@ -32,16 +32,6 @@ struct ContentView: View {
                 .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
-        .overlay(alignment: .top) {
-            if let state = store.summaryState {
-                ZStack(alignment: .top) {
-                    PopupBackdrop { store.dismissSummary() }
-                    SummaryPopup(state: state) { store.dismissSummary() }
-                        .padding(.top, 48)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-            }
-        }
         .overlay {
             if let terminal = store.renamingTerminal {
                 ZStack {
@@ -171,7 +161,6 @@ struct ContentView: View {
                 MemoryOverlay()
             }
         }
-        .animation(.snappy(duration: 0.2), value: store.summaryState == nil)
         .animation(.snappy(duration: 0.22), value: store.visibleHint?.id)
         .animation(.smooth(duration: 0.3), value: store.welcomeVisible)
         .animation(.snappy(duration: 0.2), value: store.helpVisible)
@@ -343,14 +332,6 @@ struct ProjectSidebarRow: View {
     private var isBusy: Bool { project.terminals.contains { $0.isBusy } }
     private var isPinned: Bool { store.isPinned(project) }
     private var tabCount: Int { project.terminals.count }
-    /// Any tab the user isn't looking at finished an agent turn unseen.
-    /// Most severe level among unseen finished tabs; nil when none.
-    private var attentionLevel: ResultLevel? {
-        project.terminals
-            .filter { $0.needsAttention && !(isActive && $0.id == project.activeTerminalID) }
-            .map(\.resultLevel)
-            .max()
-    }
 
     var body: some View {
         VStack(spacing: 2) {
@@ -388,12 +369,6 @@ struct ProjectSidebarRow: View {
                 .strokeBorder(isActive ? color.opacity(0.28) : .clear, lineWidth: 1)
         )
         .animation(.snappy(duration: 0.18), value: isActive)
-        // Activating a tab dismisses its result dot.
-        .onChange(of: isActive ? project.activeTerminalID : nil, initial: true) { _, id in
-            guard let id, let terminal = project.terminals.first(where: { $0.id == id }) else { return }
-            terminal.needsAttention = false
-            terminal.resultLevel = .neutral
-        }
         .task(id: isActive) {
             if isActive, !project.isStandaloneTerminal, gitContext == nil {
                 gitContext = await SidebarGitContext.load(for: project.folder)
@@ -435,10 +410,6 @@ struct ProjectSidebarRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             // Trailing cluster, vertically centered: tag, then busy/pin.
-            if let level = attentionLevel {
-                Circle().fill(level.color).frame(width: 7, height: 7)
-                    .help("Agent finished")
-            }
             if let tag = store.tag(for: project), tag.hasLabel {
                 Text(tag.label)
                     .font(.system(size: 9, weight: .bold, design: .rounded))
@@ -586,9 +557,6 @@ private struct SidebarTerminalRow: View {
                 .truncationMode(.tail)
             Spacer(minLength: 2)
 
-            if terminal.needsAttention && !isActive {
-                Circle().fill(terminal.resultLevel.color).frame(width: 6, height: 6)
-            }
             if hovering {
                 Button(action: close) {
                     Image(systemName: "xmark")
@@ -933,12 +901,6 @@ struct ProjectPane: View {
             store.toggleExpandActiveTerminal()
         }
         .keyboardShortcut("e", modifiers: .command)
-
-        Button("Summarize Selection") {
-            focusTerminal(terminal)
-            store.summarizeSelection()
-        }
-        .keyboardShortcut("f", modifiers: .command)
 
         Divider()
 

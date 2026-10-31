@@ -105,8 +105,6 @@ private struct LiftoffSettingsView: View {
                     PromptShortcutsSettingsPane()
                 case .projectTags:
                     ProjectTagsSettingsPane()
-                case .aiAssistant:
-                    AIAssistantSettingsPane()
                 case .about:
                     AboutSettingsPane()
                 }
@@ -120,7 +118,6 @@ private struct LiftoffSettingsView: View {
 private enum SettingsSection: String, CaseIterable, Identifiable {
     case promptShortcuts
     case projectTags
-    case aiAssistant
     case about
 
     var id: Self { self }
@@ -129,7 +126,6 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .promptShortcuts: "Prompt Shortcuts"
         case .projectTags: "Project Tags"
-        case .aiAssistant: "AI Assistant"
         case .about: "About"
         }
     }
@@ -138,7 +134,6 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .promptShortcuts: "text.quote"
         case .projectTags: "tag"
-        case .aiAssistant: "sparkles"
         case .about: "info.circle"
         }
     }
