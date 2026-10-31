@@ -198,20 +198,25 @@ enum LiftoffMCP {
         let result: [String: Any]
         switch method {
         case "initialize":
-            result = [
+            // Outside a Liftoff terminal (no session header) the server stays
+            // silent: no instructions and no tools, so agents never notify.
+            var info: [String: Any] = [
                 "protocolVersion": params["protocolVersion"] as? String ?? "2025-06-18",
                 "capabilities": ["tools": [:]],
-                "serverInfo": ["name": "liftoff", "version": "1.0"],
-                "instructions": instructions
+                "serverInfo": ["name": "liftoff", "version": "1.0"]
             ]
+            if session != nil { info["instructions"] = instructions }
+            result = info
         case "ping":
             result = [:]
         case "tools/list":
-            result = ["tools": tools]
+            result = ["tools": session == nil ? [] : tools]
         case "tools/call":
             let name = params["name"] as? String ?? ""
             let args = params["arguments"] as? [String: Any] ?? [:]
-            result = callTool(name, args, session: session)
+            result = session == nil
+                ? toolResult("Not running inside a Liftoff terminal.", isError: true)
+                : callTool(name, args, session: session)
         default:
             return json(["jsonrpc": "2.0", "id": id,
                          "error": ["code": -32601, "message": "Method not found: \(method)"]])
@@ -229,8 +234,9 @@ enum LiftoffMCP {
         "Login bug fixed, tests pass." This applies to every completed request: code changes, builds, \
         deploys, investigations, reviews, and answers that took real work.
         - If the task failed or is only partly done, start the message with "Failed:".
-        - If you stop to ask the user a question or need a decision, approval, or input, call `notify` \
-        first with a message starting "Needs input:".
+        - ALWAYS, whenever you are about to stop and wait for the user for any reason (a question, a \
+        choice between options, a confirmation, credentials, a manual step, or any other input), call \
+        `notify` first with a message starting "Needs input:" that says what you need. No exceptions.
         - Call `notify` once per finished task, not after individual tool calls or intermediate steps, \
         and not for a plain one-line chat reply.
         - Call `set_tab_title` with a short (2-5 word) title when you start working on a new task.
@@ -240,8 +246,8 @@ enum LiftoffMCP {
         [
             "name": "notify",
             "description": "Send the user a macOS notification from this Liftoff terminal. "
-                + "Call this as your final action every time you finish a task, and before asking "
-                + "the user for input. One short sentence with the outcome.",
+                + "Call this as your final action every time you finish a task, and ALWAYS before "
+                + "stopping to wait for the user. One short sentence.",
             "inputSchema": [
                 "type": "object",
                 "properties": [
