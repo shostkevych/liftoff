@@ -237,8 +237,7 @@ enum LiftoffMCP {
                 "protocolVersion": params["protocolVersion"] as? String ?? "2025-06-18",
                 "capabilities": ["tools": [:]],
                 "serverInfo": ["name": "liftoff", "version": "1.0"],
-                "instructions": "Liftoff terminal integration. Use `notify` to send the user a desktop notification "
-                    + "and color this terminal's sidebar dot (e.g. when a long task completes or fails)."
+                "instructions": instructions
             ]
         case "ping":
             result = [:]
@@ -254,6 +253,19 @@ enum LiftoffMCP {
         }
         return json(["jsonrpc": "2.0", "id": id, "result": result])
     }
+
+    /// Injected into the agent's system prompt, so the behavior travels with
+    /// the server instead of every CLAUDE.md / AGENTS.md copy.
+    private static let instructions = """
+        You are running inside a Liftoff terminal tab. Liftoff shows the user a sidebar dot per tab \
+        and desktop notifications. Rules:
+        - When you finish a task that took more than a few steps, call `notify` once at the end with a \
+        one-sentence result and a level: success (done, verified), attention (done but the user must \
+        review/decide/act), critical (failed, broken, or something dangerous found), neutral (informational).
+        - Call `notify` immediately with level attention when you are blocked and need the user's input.
+        - Do not call `notify` for trivial replies or after every message.
+        - Call `set_tab_title` with a short (2-5 word) title when you start on a new task.
+        """
 
     private static let tools: [[String: Any]] = [
         [
