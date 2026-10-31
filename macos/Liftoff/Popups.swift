@@ -697,6 +697,22 @@ struct HookSetupPopup: View {
             .abbreviatingWithTildeInPath
     }
 
+    /// Claude and Codex also get Liftoff's MCP server registered.
+    private var mcpDescription: String? {
+        let file: URL
+        switch agent {
+        case .codex: file = configDir.appendingPathComponent("config.toml")
+        case .opencode: return nil
+        default:
+            file = configDir.standardizedFileURL == HookSetup.defaultConfigDir.standardizedFileURL
+                ? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".claude.json")
+                : configDir.appendingPathComponent(".claude.json")
+        }
+        let path = (file.path as NSString).abbreviatingWithTildeInPath
+        return "Liftoff MCP server, so \(agentName) can send its own notifications, "
+            + "color the sidebar dot and rename its tab (in \(path))"
+    }
+
     private var setupDescription: String {
         switch agent {
         case .codex:
@@ -720,6 +736,9 @@ struct HookSetupPopup: View {
             VStack(alignment: .leading, spacing: 8) {
                 hookRow(icon: "bell", text: "Native banner per project when \(agentName) pauses for input")
                 hookRow(icon: "checkmark.circle", text: "A ping when a response finishes")
+                if let mcpDescription {
+                    hookRow(icon: "puzzlepiece.extension", text: mcpDescription)
+                }
                 hookRow(icon: "gearshape", text: setupDescription)
             }
             .padding(12)
