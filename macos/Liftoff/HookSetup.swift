@@ -139,9 +139,10 @@ enum HookSetup {
     /// to the exact terminal via the injected $LIFTOFF_SESSION_ID env var.
     private static let userPromptSubmitCommand =
         "I=$(cat); P=$(printf '%s' \"$I\" | jq -r '.prompt // empty'); "
-        + "[ -n \"$LIFTOFF_SESSION_ID\" ] && [ -n \"$P\" ] && "
+        + "if [ -n \"$LIFTOFF_SESSION_ID\" ] && [ -n \"$P\" ]; then "
         + "curl -sG \(HookEndpoint.baseURL)/worktitle "
-        + "--data-urlencode \"session=$LIFTOFF_SESSION_ID\" --data-urlencode \"title=$P\" >/dev/null 2>&1"
+        + "--data-urlencode \"session=$LIFTOFF_SESSION_ID\" "
+        + "--data-urlencode \"title=$P\" >/dev/null 2>&1 || true; fi"
 }
 
 /// Manages Liftoff's Codex work-title hook in ~/.codex/hooks.json plus the MCP
