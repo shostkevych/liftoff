@@ -248,7 +248,7 @@ enum LiftoffMCP {
 
     /// Injected into the agent's system prompt, so the behavior travels with
     /// the server instead of every CLAUDE.md / AGENTS.md copy.
-    private static let instructions = """
+    static let instructions = """
         You are running inside a Liftoff terminal tab. The user is often in another app or tab, and \
         Liftoff's `notify` tool is the ONLY way they learn you are done. Rules (mandatory, no exceptions):
         - At the end of EVERY response, call `notify` exactly once as your very last step: first write \

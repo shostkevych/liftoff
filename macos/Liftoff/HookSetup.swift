@@ -181,13 +181,45 @@ enum CodexHookSetup {
 
     private static func isMCPInstalled(in configDir: URL) -> Bool {
         let text = (try? String(contentsOf: configDir.appendingPathComponent("config.toml"), encoding: .utf8)) ?? ""
-        return text.contains(mcpTable)
+        let rules = (try? String(contentsOf: agentsFile(in: configDir), encoding: .utf8)) ?? ""
+        return text.contains(mcpTable) && rules.contains(rulesBlock)
+    }
+
+    /// Codex doesn't pass MCP server instructions to the model, so the notify
+    /// rules go into the global AGENTS.md inside a marked, replaceable block.
+    private static func agentsFile(in configDir: URL) -> URL {
+        configDir.appendingPathComponent("AGENTS.md")
+    }
+
+    private static let rulesBegin = "<!-- liftoff:begin -->"
+    private static let rulesEnd = "<!-- liftoff:end -->"
+    private static var rulesBlock: String {
+        """
+        \(rulesBegin)
+        # Liftoff notifications
+        Only when the `\(HookEndpoint.mcpName)` MCP server's `notify` tool is available (you are in a Liftoff terminal):
+        \(LiftoffMCP.instructions)\(rulesEnd)
+        """
+    }
+
+    @discardableResult
+    private static func installRules(in configDir: URL) -> Bool {
+        let file = agentsFile(in: configDir)
+        var text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+        if let start = text.range(of: rulesBegin), let end = text.range(of: rulesEnd, range: start.upperBound..<text.endIndex) {
+            text.replaceSubrange(start.lowerBound..<end.upperBound, with: rulesBlock)
+        } else {
+            if !text.isEmpty && !text.hasSuffix("\n") { text += "\n" }
+            text += (text.isEmpty ? "" : "\n") + rulesBlock + "\n"
+        }
+        return (try? text.write(to: file, atomically: true, encoding: .utf8)) != nil
     }
 
     /// Append Liftoff's MCP server to config.toml (left alone if a table with
     /// that name already exists).
     @discardableResult
     private static func installMCP(in configDir: URL) -> Bool {
+        guard installRules(in: configDir) else { return false }
         guard !isMCPInstalled(in: configDir) else { return true }
         let file = configDir.appendingPathComponent("config.toml")
         var text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
