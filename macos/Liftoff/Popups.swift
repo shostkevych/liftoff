@@ -651,18 +651,17 @@ struct HookSetupPopup: View {
                 : configDir.appendingPathComponent(".claude.json")
         }
         let path = (file.path as NSString).abbreviatingWithTildeInPath
-        return "Liftoff MCP server, so \(agentName) can send its own notifications, "
-            + "and rename its tab (in \(path))"
+        return "Registers the Liftoff MCP server in \(path)"
     }
 
     private var setupDescription: String {
         switch agent {
         case .codex:
-            "Adds PermissionRequest + Stop hooks to \(settingsPath); approve them once with /hooks"
+            "Adds a tab-title hook to \(settingsPath) (approve once with /hooks) and removes old notify hooks"
         case .opencode:
             "Adds a notify plugin to \(settingsPath)"
         default:
-            "Adds Notification + Stop hooks to \(settingsPath)"
+            "Adds a tab-title hook to \(settingsPath) and removes old notify hooks"
         }
     }
 
@@ -676,8 +675,14 @@ struct HookSetupPopup: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: 8) {
-                hookRow(icon: "bell", text: "Native banner per project when \(agentName) pauses for input")
-                hookRow(icon: "checkmark.circle", text: "A ping when a response finishes")
+                if agent == .opencode {
+                    hookRow(icon: "bell", text: "Native banner per project when \(agentName) pauses for input")
+                    hookRow(icon: "checkmark.circle", text: "A ping when a response finishes")
+                } else {
+                    hookRow(icon: "checkmark.circle",
+                            text: "\(agentName) sends you a one-line notification each time it finishes a task")
+                    hookRow(icon: "bell", text: "…and when it stops to ask for your input")
+                }
                 if let mcpDescription {
                     hookRow(icon: "puzzlepiece.extension", text: mcpDescription)
                 }

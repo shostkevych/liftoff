@@ -222,19 +222,26 @@ enum LiftoffMCP {
     /// Injected into the agent's system prompt, so the behavior travels with
     /// the server instead of every CLAUDE.md / AGENTS.md copy.
     private static let instructions = """
-        You are running inside a Liftoff terminal tab. Liftoff can show the user desktop notifications. Rules:
-        - When you finish a task that took more than a few steps, call `notify` once at the end with a \
-        one-sentence result (say clearly if it failed or needs the user's review).
-        - Call `notify` immediately when you are blocked and need the user's input.
-        - Do not call `notify` for trivial replies or after every message.
-        - Call `set_tab_title` with a short (2-5 word) title when you start on a new task.
+        You are running inside a Liftoff terminal tab. The user is often in another app or tab, and \
+        Liftoff's `notify` tool is the ONLY way they learn your work is done. Rules (mandatory):
+        - Every time you finish a task the user gave you, your final action before ending the turn MUST \
+        be one `notify` call with one short sentence stating what was done and the outcome, e.g. \
+        "Login bug fixed, tests pass." This applies to every completed request: code changes, builds, \
+        deploys, investigations, reviews, and answers that took real work.
+        - If the task failed or is only partly done, start the message with "Failed:".
+        - If you stop to ask the user a question or need a decision, approval, or input, call `notify` \
+        first with a message starting "Needs input:".
+        - Call `notify` once per finished task, not after individual tool calls or intermediate steps, \
+        and not for a plain one-line chat reply.
+        - Call `set_tab_title` with a short (2-5 word) title when you start working on a new task.
         """
 
     private static let tools: [[String: Any]] = [
         [
             "name": "notify",
             "description": "Send the user a macOS notification from this Liftoff terminal. "
-                + "Use for important results the user should see while away.",
+                + "Call this as your final action every time you finish a task, and before asking "
+                + "the user for input. One short sentence with the outcome.",
             "inputSchema": [
                 "type": "object",
                 "properties": [
