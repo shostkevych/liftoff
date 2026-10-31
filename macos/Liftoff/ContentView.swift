@@ -532,6 +532,13 @@ private struct SidebarTerminalRow: View {
                     .lineLimit(3)
                     .truncationMode(.tail)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 7)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(.black.opacity(0.55))
+                    )
                     .padding(.bottom, 7)
                     .help(note)
             }
