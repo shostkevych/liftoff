@@ -198,7 +198,8 @@ enum CodexHookSetup {
         \(rulesBegin)
         # Liftoff notifications
         Only when the `\(HookEndpoint.mcpName)` MCP server's `notify` tool is available (you are in a Liftoff terminal):
-        \(LiftoffMCP.instructions)\(rulesEnd)
+        \(LiftoffMCP.instructions)
+        \(rulesEnd)
         """
     }
 

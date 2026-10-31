@@ -215,7 +215,12 @@ enum LiftoffMCP {
         // Notifications (no id) get no reply.
         guard let id = message["id"] else { return .accepted }
         let params = message["params"] as? [String: Any] ?? [:]
-        let session = request.headers["x-liftoff-session"].flatMap(UUID.init(uuidString:))
+        let header = request.headers["x-liftoff-session"]
+        let session = header.flatMap(UUID.init(uuidString:))
+        // Claude sends an empty header outside Liftoff → stay hidden. Codex's
+        // shared app-server may send a stale ID or none, so those still get the
+        // tools and calls are matched to a tab by `cwd` (unmatched are dropped).
+        let hidden = header.map { $0.trimmingCharacters(in: .whitespaces).isEmpty } ?? false
 
         let result: [String: Any]
         switch method {
@@ -227,16 +232,16 @@ enum LiftoffMCP {
                 "capabilities": ["tools": [:]],
                 "serverInfo": ["name": "liftoff", "version": "1.0"]
             ]
-            if session != nil { info["instructions"] = instructions }
+            if !hidden { info["instructions"] = instructions }
             result = info
         case "ping":
             result = [:]
         case "tools/list":
-            result = ["tools": session == nil ? [] : tools]
+            result = ["tools": hidden ? [] : tools]
         case "tools/call":
             let name = params["name"] as? String ?? ""
             let args = params["arguments"] as? [String: Any] ?? [:]
-            result = session == nil
+            result = hidden
                 ? toolResult("Not running inside a Liftoff terminal.", isError: true)
                 : callTool(name, args, session: session)
         default:
@@ -260,6 +265,7 @@ enum LiftoffMCP {
         - If you end by asking the user anything or waiting for a decision, approval, or input, start \
         the message with "Needs input:" and say what you need.
         - Never call `notify` more than once per response.
+        - Always pass `cwd`: the absolute path of your current working directory.
         - Call `set_tab_title` with a short (2-5 word) title when you start working on a new task.
         """
 
@@ -275,9 +281,10 @@ enum LiftoffMCP {
                 "type": "object",
                 "properties": [
                     "message": ["type": "string", "description": "Notification body."],
+                    "cwd": ["type": "string", "description": "Absolute path of your current working directory."],
                     "title": ["type": "string", "description": "Optional title; defaults to the project name."]
                 ],
-                "required": ["message"]
+                "required": ["message", "cwd"]
             ]
         ],
         [
@@ -287,8 +294,11 @@ enum LiftoffMCP {
             "description": "Set this Liftoff terminal tab's title.",
             "inputSchema": [
                 "type": "object",
-                "properties": ["title": ["type": "string"]],
-                "required": ["title"]
+                "properties": [
+                    "title": ["type": "string"],
+                    "cwd": ["type": "string", "description": "Absolute path of your current working directory."]
+                ],
+                "required": ["title", "cwd"]
             ]
         ]
     ]
@@ -299,14 +309,17 @@ enum LiftoffMCP {
             guard let message = args["message"] as? String, !message.isEmpty else {
                 return toolResult("Missing `message`.", isError: true)
             }
-            let located = session.flatMap(locate)
+            guard let located = resolve(session: session, cwd: args["cwd"] as? String) else {
+                return toolResult("Ignored: not running inside a Liftoff terminal.")
+            }
             let title = (args["title"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-                ?? located?.project.folder.lastPathComponent ?? "Liftoff"
+                ?? located.project.folder.lastPathComponent
             NotificationManager.shared.post(title: title, message: message)
-            located?.terminal.note = message
+            located.terminal.note = message
             return toolResult("Notification sent.")
         case "set_tab_title":
-            guard let title = args["title"] as? String, let terminal = session.flatMap(locate)?.terminal else {
+            guard let title = args["title"] as? String,
+                  let terminal = resolve(session: session, cwd: args["cwd"] as? String)?.terminal else {
                 return toolResult("No title or not running inside a Liftoff terminal.", isError: true)
             }
             terminal.title = String(title.prefix(60))
@@ -314,6 +327,32 @@ enum LiftoffMCP {
         default:
             return toolResult("Unknown tool: \(name)", isError: true)
         }
+    }
+
+    /// The session header wins when it names a live tab; otherwise pick the
+    /// agent tab whose folder contains `cwd`, preferring the deepest match.
+    private static func resolve(session: UUID?, cwd: String?) -> (project: Project, terminal: TerminalSession)? {
+        if let session, let found = locate(session) { return found }
+        guard let cwd, !cwd.isEmpty else { return nil }
+        let target = URL(fileURLWithPath: cwd).standardizedFileURL.path
+        func contains(_ folder: URL) -> Bool {
+            let base = folder.standardizedFileURL.path
+            return target == base || target.hasPrefix(base.hasSuffix("/") ? base : base + "/")
+        }
+        var best: (project: Project, terminal: TerminalSession, score: Int)?
+        for store in AppStore.allStores {
+            for project in store.projects {
+                // Only tabs with a live agent can be the caller; this also keeps a
+                // plain home-folder terminal from catching every path.
+                for terminal in project.terminals where terminal.runningAgent != nil {
+                    let folders = [terminal.workingDirectory, project.folder].filter(contains)
+                    guard let depth = folders.map({ $0.standardizedFileURL.path.count }).max() else { continue }
+                    let score = depth * 2 + (project.activeTerminalID == terminal.id ? 1 : 0)
+                    if score > (best?.score ?? -1) { best = (project, terminal, score) }
+                }
+            }
+        }
+        return best.map { ($0.project, $0.terminal) }
     }
 
     private static func locate(_ id: UUID) -> (project: Project, terminal: TerminalSession)? {
