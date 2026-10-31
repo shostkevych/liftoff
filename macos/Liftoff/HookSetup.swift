@@ -8,6 +8,10 @@ private enum HookEndpoint {
     static let mcpName = BuildVariant.portOffset == 0 ? "liftoff" : "liftoff-dev"
     static let mcpURL = "\(baseURL)/mcp"
     static let sessionHeader = "X-Liftoff-Session"
+    /// Per-turn reminder injected by Claude's UserPromptSubmit hook (no quotes).
+    static let notifyReminder = "Liftoff: after writing your full reply to this message, call "
+        + "mcp__\(mcpName)__notify exactly once as your very last step (one short sentence: outcome, "
+        + "Failed: ..., or Needs input: ...). Required for every response, including short answers."
 }
 
 /// Find/strip Liftoff's entries in an agent hooks event (matcher array).
@@ -61,7 +65,7 @@ enum HookSetup {
         guard let data = try? Data(contentsOf: settingsFile(in: configDir)),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let hooks = root["hooks"] as? [String: Any] else { return false }
-        return LiftoffHooks.contains(hooks["UserPromptSubmit"], markers: [marker])
+        return LiftoffHooks.contains(hooks["UserPromptSubmit"], markers: ["__notify"])
             && !retiredEvents.contains { LiftoffHooks.contains(hooks[$0], markers: [marker, legacyMarker]) }
             && isMCPInstalled(in: configDir)
     }
@@ -138,12 +142,15 @@ enum HookSetup {
     /// Fired when the user submits a prompt — sends the prompt text as this
     /// session's "work title" so the tab reflects what Claude is doing. Routed
     /// to the exact terminal via the injected $LIFTOFF_SESSION_ID env var.
+    /// Its stdout is added to Claude's context, so inside Liftoff it also
+    /// reminds the model each turn to end with the MCP `notify` call.
     private static let userPromptSubmitCommand =
         "I=$(cat); P=$(printf '%s' \"$I\" | jq -r '.prompt // empty'); "
         + "if [ -n \"$LIFTOFF_SESSION_ID\" ] && [ -n \"$P\" ]; then "
         + "curl -sG \(HookEndpoint.baseURL)/worktitle "
         + "--data-urlencode \"session=$LIFTOFF_SESSION_ID\" "
-        + "--data-urlencode \"title=$P\" >/dev/null 2>&1 || true; fi"
+        + "--data-urlencode \"title=$P\" >/dev/null 2>&1 || true; "
+        + "echo '\(HookEndpoint.notifyReminder)'; fi"
 }
 
 /// Manages Liftoff's Codex work-title hook in ~/.codex/hooks.json plus the MCP

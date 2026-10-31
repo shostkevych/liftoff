@@ -228,17 +228,16 @@ enum LiftoffMCP {
     /// the server instead of every CLAUDE.md / AGENTS.md copy.
     private static let instructions = """
         You are running inside a Liftoff terminal tab. The user is often in another app or tab, and \
-        Liftoff's `notify` tool is the ONLY way they learn your work is done. Rules (mandatory):
-        - Every time you finish a task the user gave you, your final action before ending the turn MUST \
-        be one `notify` call with one short sentence stating what was done and the outcome, e.g. \
-        "Login bug fixed, tests pass." This applies to every completed request: code changes, builds, \
-        deploys, investigations, reviews, and answers that took real work.
+        Liftoff's `notify` tool is the ONLY way they learn you are done. Rules (mandatory, no exceptions):
+        - At the end of EVERY response, call `notify` exactly once as your very last step: first write \
+        your full reply, then call `notify`, then end the turn without repeating your reply. This applies \
+        to every response, including short answers, opinions, and replies that used no tools.
+        - The message is one short sentence with the outcome or gist, e.g. "Login bug fixed, tests pass." \
+        or "Answered: recommend building the fetcher service next."
         - If the task failed or is only partly done, start the message with "Failed:".
-        - ALWAYS, whenever you are about to stop and wait for the user for any reason (a question, a \
-        choice between options, a confirmation, credentials, a manual step, or any other input), call \
-        `notify` first with a message starting "Needs input:" that says what you need. No exceptions.
-        - Call `notify` once per finished task, not after individual tool calls or intermediate steps, \
-        and not for a plain one-line chat reply.
+        - If you end by asking the user anything or waiting for a decision, approval, or input, start \
+        the message with "Needs input:" and say what you need.
+        - Never call `notify` more than once per response.
         - Call `set_tab_title` with a short (2-5 word) title when you start working on a new task.
         """
 
@@ -248,8 +247,8 @@ enum LiftoffMCP {
             // Never deferred behind Claude Code's tool search.
             "_meta": ["anthropic/alwaysLoad": true],
             "description": "Send the user a macOS notification from this Liftoff terminal. "
-                + "Call this as your final action every time you finish a task, and ALWAYS before "
-                + "stopping to wait for the user. One short sentence.",
+                + "Call it exactly once as the very last step of EVERY response, after writing your "
+                + "reply. One short sentence.",
             "inputSchema": [
                 "type": "object",
                 "properties": [
