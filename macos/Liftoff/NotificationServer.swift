@@ -245,6 +245,8 @@ enum LiftoffMCP {
     private static let tools: [[String: Any]] = [
         [
             "name": "notify",
+            // Never deferred behind Claude Code's tool search.
+            "_meta": ["anthropic/alwaysLoad": true],
             "description": "Send the user a macOS notification from this Liftoff terminal. "
                 + "Call this as your final action every time you finish a task, and ALWAYS before "
                 + "stopping to wait for the user. One short sentence.",
@@ -259,6 +261,8 @@ enum LiftoffMCP {
         ],
         [
             "name": "set_tab_title",
+            // Never deferred behind Claude Code's tool search.
+            "_meta": ["anthropic/alwaysLoad": true],
             "description": "Set this Liftoff terminal tab's title.",
             "inputSchema": [
                 "type": "object",

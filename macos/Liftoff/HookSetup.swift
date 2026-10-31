@@ -79,7 +79,7 @@ enum HookSetup {
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let servers = root["mcpServers"] as? [String: Any],
               let entry = servers[HookEndpoint.mcpName] as? [String: Any] else { return false }
-        return entry["url"] as? String == HookEndpoint.mcpURL
+        return entry["url"] as? String == HookEndpoint.mcpURL && entry["alwaysLoad"] as? Bool == true
     }
 
     /// Register Liftoff's MCP server; the session header expands from the
@@ -98,6 +98,7 @@ enum HookSetup {
         servers[HookEndpoint.mcpName] = [
             "type": "http",
             "url": HookEndpoint.mcpURL,
+            "alwaysLoad": true,
             "headers": [HookEndpoint.sessionHeader: "${LIFTOFF_SESSION_ID:-}"]
         ]
         root["mcpServers"] = servers
