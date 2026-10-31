@@ -373,6 +373,9 @@ final class TerminalSession: Identifiable {
     var runningAgent: Agent?
     /// True while the PTY is actively producing output (recent activity).
     var isBusy: Bool = false
+    /// Last message the agent sent via the Liftoff MCP `notify` tool, shown
+    /// under the tab in the sidebar; cleared when the user sends a new prompt.
+    var note: String?
 
     var displayTitle: String { customTitle ?? title }
 

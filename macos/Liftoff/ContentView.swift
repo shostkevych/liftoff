@@ -522,7 +522,46 @@ private struct SidebarTerminalRow: View {
 
     @State private var hovering = false
 
+    /// Agent note tint: red for failures, yellow when it waits on the user.
+    private var noteColor: Color {
+        guard let note = terminal.note else { return .secondary }
+        if note.hasPrefix("Failed:") { return .red.opacity(0.85) }
+        if note.hasPrefix("Needs input:") { return .yellow.opacity(0.85) }
+        return .secondary
+    }
+
     var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            titleRow
+            if let note = terminal.note {
+                Text(note)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(noteColor)
+                    .lineLimit(3)
+                    .truncationMode(.tail)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 21)
+                    .padding(.bottom, 6)
+                    .help(note)
+            }
+        }
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(isActive
+                      ? AnyShapeStyle(accent.opacity(0.16))
+                      : (hovering ? AnyShapeStyle(.white.opacity(0.05)) : AnyShapeStyle(.clear)))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(isActive ? accent.opacity(0.22) : .clear, lineWidth: 0.5)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture(perform: select)
+        .onHover { hovering = $0 }
+    }
+
+    private var titleRow: some View {
         HStack(spacing: 7) {
             Group {
                 if terminal.isBusy {
@@ -567,21 +606,7 @@ private struct SidebarTerminalRow: View {
                 .buttonStyle(.borderless)
             }
         }
-        .padding(.horizontal, 8)
         .frame(height: 30)
-        .background(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(isActive
-                      ? AnyShapeStyle(accent.opacity(0.16))
-                      : (hovering ? AnyShapeStyle(.white.opacity(0.05)) : AnyShapeStyle(.clear)))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .strokeBorder(isActive ? accent.opacity(0.22) : .clear, lineWidth: 0.5)
-        )
-        .contentShape(Rectangle())
-        .onTapGesture(perform: select)
-        .onHover { hovering = $0 }
     }
 }
 

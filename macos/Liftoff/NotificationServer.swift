@@ -99,12 +99,26 @@ final class NotificationServer {
             .map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
         guard !line.isEmpty else { return }
         let title = line.count > 60 ? String(line.prefix(60)) + "…" : line
+        clearNote(sessionID: sessionID)
 
         for store in AppStore.allStores {
             for project in store.projects {
                 if let session = project.terminals.first(where: { $0.id == sessionID }),
                    session.runningAgent == .claude || session.runningAgent == .codex {
                     session.title = title
+                    return
+                }
+            }
+        }
+    }
+
+    /// A new prompt starts a new task, so the previous agent note goes stale.
+    @MainActor
+    private static func clearNote(sessionID: UUID) {
+        for store in AppStore.allStores {
+            for project in store.projects {
+                if let session = project.terminals.first(where: { $0.id == sessionID }) {
+                    session.note = nil
                     return
                 }
             }
@@ -277,9 +291,11 @@ enum LiftoffMCP {
             guard let message = args["message"] as? String, !message.isEmpty else {
                 return toolResult("Missing `message`.", isError: true)
             }
+            let located = session.flatMap(locate)
             let title = (args["title"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-                ?? session.flatMap(locate)?.project.folder.lastPathComponent ?? "Liftoff"
+                ?? located?.project.folder.lastPathComponent ?? "Liftoff"
             NotificationManager.shared.post(title: title, message: message)
+            located?.terminal.note = message
             return toolResult("Notification sent.")
         case "set_tab_title":
             guard let title = args["title"] as? String, let terminal = session.flatMap(locate)?.terminal else {
