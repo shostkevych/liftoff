@@ -52,9 +52,16 @@ final class NotificationServer {
     @MainActor
     private static func respond(to request: HTTPRequest) -> HTTPResponse {
         guard let components = URLComponents(string: "http://localhost\(request.target)") else { return .ok }
-        if components.path == "/mcp" { return LiftoffMCP.handle(request) }
-        handle(components: components)
-        return .ok
+        switch components.path {
+        case "/mcp": return LiftoffMCP.handle(request)
+        case "/notify", "/worktitle", "/agentresult":
+            handle(components: components)
+            return .ok
+        default:
+            // Unknown paths (e.g. OAuth discovery under /.well-known) must 404 so
+            // MCP clients don't mistake this server for one that needs auth.
+            return .notFound
+        }
     }
 
     @MainActor
@@ -180,9 +187,10 @@ struct HTTPResponse {
     static let ok = HTTPResponse()
     static let accepted = HTTPResponse(status: 202, body: Data())
     static let notAllowed = HTTPResponse(status: 405, body: Data())
+    static let notFound = HTTPResponse(status: 404, body: Data())
 
     var data: Data {
-        let reason = [200: "OK", 202: "Accepted", 400: "Bad Request", 405: "Method Not Allowed"][status] ?? "OK"
+        let reason = [200: "OK", 202: "Accepted", 400: "Bad Request", 404: "Not Found", 405: "Method Not Allowed"][status] ?? "OK"
         var head = "HTTP/1.1 \(status) \(reason)\r\n"
         if !body.isEmpty { head += "Content-Type: \(contentType)\r\n" }
         head += "Content-Length: \(body.count)\r\nConnection: close\r\n\r\n"
