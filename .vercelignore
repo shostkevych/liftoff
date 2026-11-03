@@ -1,0 +1,16 @@
+/*
+!site
+site/node_modules
+site/.next
+site/.vercel
+site/.claude
+site/.env*
+site/*.pem
+site/secrets.json
+site/.DS_Store
+site/*.log
+site/.hawkfile
+site/CLAUDE.md
+site/public/dmg
+site/public/releases
+site/public/review-demo.mp4

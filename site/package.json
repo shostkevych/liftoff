@@ -5,12 +5,14 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "next start"
+  },
+  "engines": {
+    "node": "24.x"
   },
   "dependencies": {
-    "next": "15.1.6",
-    "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "next": "16.4.4",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
   }
 }
