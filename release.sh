@@ -11,7 +11,6 @@ SIGN_ID="Developer ID Application: Oleh Shostkevych (696F3B97CX)"
 EXPECTED_NAME="Oleh Shostkevych"
 EXPECTED_EMAIL="personal@shostkevych.com"
 RELEASE_BASE_URL="https://liftoff.shostkevych.com"
-DNC="${DNC_PATH:-$REPO/../docker-node-commander/src/index.ts}"
 
 usage() {
   cat <<'EOF'
@@ -25,10 +24,11 @@ Before running:
   2. Sync site/changelog.md.
   3. Set MARKETING_VERSION and CURRENT_PROJECT_VERSION in project.yml and Xcode.
   4. Commit everything on a clean feature branch.
+  5. Import the website into Vercel with Root Directory site, then run
+     vercel link from the repository root to select that project.
 
 Optional environment:
   NOTARY_PROFILE=liftoff-notary
-  DNC_PATH=/path/to/docker-node-commander/src/index.ts
 EOF
 }
 
@@ -56,9 +56,9 @@ command -v git >/dev/null || fail "git is required"
 command -v gh >/dev/null || fail "GitHub CLI is required"
 command -v xcodebuild >/dev/null || fail "Xcode command-line tools are required"
 command -v create-dmg >/dev/null || fail "create-dmg is required"
-command -v bun >/dev/null || fail "Bun is required for Docker Node Commander"
-[[ -f "$DNC" ]] || fail "Docker Node Commander not found at $DNC"
-[[ -f "$SITE/.hawkfile" ]] || fail "Missing site/.hawkfile"
+command -v vercel >/dev/null || fail "Vercel CLI is required (npm install -g vercel)"
+[[ -f "$REPO/.vercel/project.json" ]] \
+  || fail "Run vercel link from the repository root; the project's Root Directory must be site"
 
 if [[ $# -eq 2 ]]; then
   VERSION="$1"
@@ -102,6 +102,8 @@ grep -q "CURRENT_PROJECT_VERSION = $BUILD_NUMBER;" "$MACOS/Liftoff.xcodeproj/pro
   || fail "Xcode project build number is not $BUILD_NUMBER"
 
 gh auth status >/dev/null 2>&1 || fail "GitHub CLI is not authenticated"
+vercel whoami --cwd "$REPO" >/dev/null \
+  || fail "Vercel CLI is not authenticated; run vercel login"
 security find-identity -v -p codesigning | grep -Fq "$SIGN_ID" \
   || fail "Developer ID certificate is unavailable"
 xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1 \
@@ -118,14 +120,6 @@ REMOTE_TAG_SHA="$(git ls-remote --tags origin "refs/tags/$TAG" | awk '{print $1}
 if [[ -n "$REMOTE_TAG_SHA" && "$REMOTE_TAG_SHA" != "$HEAD_SHA" ]]; then
   fail "Remote tag $TAG points to another commit"
 fi
-
-DEPLOY_HOST="$(awk '$1 == "host:" {print $2; exit}' "$SITE/.hawkfile")"
-HOST_PORT="$(sed -nE 's/^[[:space:]]*-[[:space:]]*"([0-9]+):[0-9]+".*/\1/p' "$SITE/.hawkfile" | head -1)"
-[[ -n "$DEPLOY_HOST" && -n "$HOST_PORT" ]] || fail "Invalid site/.hawkfile host or port"
-
-step "Checking deployment host and port $DEPLOY_HOST:$HOST_PORT"
-ssh "ubuntu@$DEPLOY_HOST" \
-  "docker ps --filter name=liftoff-site --format '{{.Names}} {{.Ports}} {{.Status}}'; ss -ltn '( sport = :$HOST_PORT )'"
 
 step "Building, signing, notarizing, and generating Sparkle update"
 "$MACOS/scripts/release.sh" "$VERSION" "$BUILD_NUMBER"
@@ -181,17 +175,21 @@ else
     --notes-file "$NOTES_FILE"
 fi
 
-step "Deploying Sparkle feed, changelog, and release files"
-(
-  cd "$SITE"
-  bun run "$DNC" --update
-)
+step "Committing the signed update feed after publishing its GitHub assets"
+git add -- site/public/appcast.xml site/changelog.md
+if ! git diff --cached --quiet; then
+  git commit -m "chore: publish Liftoff $VERSION update feed"
+fi
+git push -u origin "$BRANCH"
+
+step "Deploying the website and signed Sparkle feed to Vercel"
+vercel deploy --prod --yes --cwd "$REPO"
 
 step "Verifying live update"
 curl --fail --silent --show-error --retry 5 \
   "$RELEASE_BASE_URL/appcast.xml?v=$VERSION" \
   | grep -F "<title>$VERSION</title>" >/dev/null
-curl --fail --silent --show-error --retry 5 --head \
+curl --fail --silent --show-error --retry 5 --head --location \
   "$RELEASE_BASE_URL/releases/Liftoff-$VERSION.zip" >/dev/null
 curl --fail --silent --show-error --retry 5 \
   "$RELEASE_BASE_URL/changelog" \

@@ -16,7 +16,7 @@
 #     script still builds + signs but SKIPS notarization, and Sparkle/Gatekeeper
 #     will reject the update on other machines.
 #
-# After running, deploy the site (site/public/appcast.xml + site/public/releases/*).
+# After running, publish the ZIP to GitHub Releases and commit/deploy the appcast.
 set -euo pipefail
 
 NOTARY_PROFILE="${NOTARY_PROFILE:-liftoff-notary}"
@@ -30,7 +30,7 @@ BUILD_DIR="$ROOT/build"
 RELEASES="$REPO/site/public/releases"
 TOOLS="$ROOT/.sparkle-tools"
 SPARKLE_VERSION="2.6.4"
-DOWNLOAD_PREFIX="https://liftoff.shostkevych.com/releases/"
+DOWNLOAD_PREFIX="https://github.com/shostkevych/liftoff/releases/download/v${SHORT_VERSION}/"
 
 mkdir -p "$RELEASES" "$TOOLS"
 
@@ -129,13 +129,17 @@ open(dest, "w").write("\n".join(out) + "\n")
 PYEOF
 
 echo "› Generating appcast (signs with your Keychain EdDSA key)…"
-"$TOOLS/bin/generate_appcast" --embed-release-notes --download-url-prefix "$DOWNLOAD_PREFIX" "$RELEASES"
+# Start from the committed feed, rather than stale local release metadata.
+cp "$REPO/site/public/appcast.xml" "$RELEASES/appcast.xml"
+"$TOOLS/bin/generate_appcast" --embed-release-notes \
+  --versions "$BUILD_NUMBER" --maximum-versions 1 --maximum-deltas 0 \
+  --download-url-prefix "$DOWNLOAD_PREFIX" "$RELEASES"
 
 # generate_appcast writes releases/appcast.xml; the feed lives at site root.
 cp "$RELEASES/appcast.xml" "$REPO/site/public/appcast.xml"
 
 # Keep the site's /changelog page in sync (site/changelog.md is baked into
-# the page at Docker build time).
+# the page at website build time).
 cp "$ROOT/CHANGELOG.md" "$REPO/site/changelog.md"
 
 echo "✓ Done. Review and deploy:"

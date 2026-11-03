@@ -52,6 +52,31 @@ The checked-in project uses the author's signing team; switch the targets to you
 
 Release builds (`macos/scripts/release.sh`, `macos/scripts/build-dmg.sh`) additionally need a Developer ID certificate and a `notarytool` keychain profile — see the comments at the top of each script.
 
+## Website hosting
+
+The public website runs on Next.js 16 and Node.js 24. Import this GitHub repository
+into Vercel, choose the **Next.js** preset, and set **Root Directory** to `site`.
+Use `npm ci` to install, `npm run build` to build, and the default output settings.
+Select the production branch containing the website changes.
+
+Add `liftoff.shostkevych.com` in Vercel's domain settings and replace its former
+Cloudflare Tunnel DNS record with the record Vercel provides. Keep DNS at
+Cloudflare; changing nameservers is unnecessary. The production hostname must
+remain public so Sparkle can fetch `/appcast.xml` without authentication.
+
+`/download` resolves the latest DMG on GitHub Releases. The signed Sparkle feed
+is committed at `site/public/appcast.xml` and references ZIPs on GitHub Releases;
+application binaries are excluded from website deployments. Legacy versioned
+`/releases/Liftoff-<version>.zip` and `/dmg/Liftoff-<version>.dmg` URLs redirect
+to their matching GitHub release assets.
+
+For future macOS releases, install the Vercel CLI and run `vercel login` and
+`vercel link` from the **repository root**, selecting the imported website project.
+The existing `./release.sh <version> <build>` workflow publishes the signed DMG/ZIP
+to GitHub, commits and pushes the generated update feed, then deploys the website
+with `vercel deploy --prod`. Signing and notarization credentials stay on the Mac;
+the website needs no secrets or environment variables.
+
 ## License
 
 [MIT](LICENSE). The vendored SwiftTerm fork keeps its original MIT license and copyright.

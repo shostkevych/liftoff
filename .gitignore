@@ -32,8 +32,9 @@ secrets.json
 .sparkle-tools/
 .claude/
 
-# Website deploy artifacts — big binaries / regenerated per release
+# Website release artifacts; only the signed public appcast belongs in Git
 appcast.xml
+!site/public/appcast.xml
 site/public/dmg/
 site/public/releases/
 site/public/review-demo.mp4

@@ -1,0 +1,23 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Liftoff</title>
+        <item>
+            <title>1.17</title>
+            <pubDate>Wed, 29 Jul 2026 17:21:55 +0300</pubDate>
+            <sparkle:version>20</sparkle:version>
+            <sparkle:shortVersionString>1.17</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>Version 1.17</h2>
+<ul>
+<li>Added native Liftoff Settings with Prompt Shortcuts, global Project Tags, and About sections</li>
+<li>Added locally stored prompt shortcuts that paste into the active terminal without sending</li>
+<li>The CMD + SHIFT quick switcher now moves between Projects and Shortcuts with Left/Right, navigates with Up/Down, and acts on release</li>
+<li>Added a reusable global tag catalogue where tag names and colors can be managed once for every project</li>
+<li>New Terminal now opens as a neutral standalone Terminal instead of exposing the home directory as a project</li>
+</ul>
+]]></description>
+            <enclosure url="https://github.com/shostkevych/liftoff/releases/download/v1.17/Liftoff-1.17.zip" length="5630743" type="application/octet-stream" sparkle:edSignature="Kxc9gD5NXlNmjMbdfIY91BAXF9HazxlAZgiwDirjcHoM7+Oabsn7VUdnY+rVdbcPgBosZOQf4KP5WSPJQ4R/Bg=="/>
+        </item>
+    </channel>
+</rss>
