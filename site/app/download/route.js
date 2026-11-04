@@ -1,27 +1,25 @@
-// Resolve the latest DMG without bundling application archives in the website.
-// If GitHub's API is unavailable, its release page still provides the download.
-export const dynamic = "force-dynamic";
+import fs from "node:fs";
+import path from "node:path";
+
+// Resolve at build time from the signed feed deployed with this website.
+// GitHub's cached latest-release API can lag behind a newly published release.
+export const dynamic = "force-static";
 
 const FALLBACK = "https://github.com/shostkevych/liftoff/releases/latest";
-const GITHUB_LATEST =
-  "https://api.github.com/repos/shostkevych/liftoff/releases/latest";
 
-async function githubDmgUrl() {
-  const res = await fetch(GITHUB_LATEST, {
-    headers: { Accept: "application/vnd.github+json" },
-    next: { revalidate: 300 },
-    signal: AbortSignal.timeout(5000),
-  });
-  if (!res.ok) return null;
-  const release = await res.json();
-  const dmg = (release.assets || []).find((a) => a.name.endsWith(".dmg"));
-  return dmg?.browser_download_url ?? null;
-}
-
-export async function GET() {
-  const url = await githubDmgUrl().catch(() => null);
+export function GET() {
+  let url = FALLBACK;
+  try {
+    const feed = fs.readFileSync(path.join(process.cwd(), "public", "appcast.xml"), "utf8");
+    const version = feed.match(/<sparkle:shortVersionString>(\d+(?:\.\d+)*)<\/sparkle:shortVersionString>/)?.[1];
+    if (version) {
+      url = `https://github.com/shostkevych/liftoff/releases/download/v${version}/Liftoff-${version}.dmg`;
+    }
+  } catch {
+    // Keep downloads available through GitHub if release metadata is missing.
+  }
   return new Response(null, {
     status: 302,
-    headers: { Location: url ?? FALLBACK, "Cache-Control": "no-store" },
+    headers: { Location: url, "Cache-Control": "no-store" },
   });
 }

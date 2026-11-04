@@ -67,7 +67,8 @@ Cloudflare Tunnel DNS record with the record Vercel provides. Keep DNS at
 Cloudflare; changing nameservers is unnecessary. The production hostname must
 remain public so Sparkle can fetch `/appcast.xml` without authentication.
 
-`/download` resolves the latest DMG on GitHub Releases. The signed Sparkle feed
+`/download` uses the same version as the signed Sparkle feed, redirecting to its
+DMG on GitHub Releases without depending on GitHub's latest-release API cache. The feed
 is committed at `site/public/appcast.xml` and references ZIPs on GitHub Releases;
 application binaries are excluded from website deployments. Legacy versioned
 `/releases/Liftoff-<version>.zip` and `/dmg/Liftoff-<version>.dmg` URLs redirect
