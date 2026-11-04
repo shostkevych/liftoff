@@ -18,8 +18,11 @@ Watch and steer Claude Code, Codex, Gemini and more — from your Mac, your phon
 
 ## Features
 
-- **Projects × terminals** — top-level tabs per project folder, nested terminal tabs and split panes per project, each running its own agent session.
-- **Agent-aware** — detects when Claude Code (or opencode) is working, waiting for input, or done; shows per-session status at a glance and native macOS notifications with project-aware titles.
+- **Projects × terminals** — a sidebar for project folders, reusable color tags, terminal tabs, and split panes; keep several projects visible or open a standalone shell.
+- **Agent updates** — Claude Code and Codex send native completion and attention notifications through Liftoff's MCP integration; their latest message stays beneath the matching sidebar tab, with task-aware titles.
+- **Prompt Shortcuts** — save reusable prompts in native Settings, then use the Cmd+Shift quick switcher to paste into the active terminal without submitting.
+- **Everyday controls** — summon Instant Terminal with Cmd+I, restore a closed tab within 10 seconds, rename terminals, and inspect memory usage per shell.
+- **Your notification sound** — choose a custom MP3, M4A, WAV, or AIFF in Settings, preview it, or restore the default.
 - **Liftoff Air (iOS companion)** — pair your iPhone by scanning a QR code and monitor or drive every session from your phone over the local network, with end-to-end encrypted traffic. [Get it on the App Store](https://apps.apple.com/us/app/liftoff-air/id6780915535).
 - **Web access** — a bundled browser client lets you check on sessions from any device.
 - **Native & fast** — SwiftUI + [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) with a Metal-accelerated renderer. No Electron, no account, and no terminal data collection.
@@ -39,7 +42,7 @@ Watch and steer Claude Code, Codex, Gemini and more — from your Mac, your phon
 
 ## Building from source
 
-Requirements: Xcode 16+, [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
+Requirements: Xcode with the macOS 26 SDK or later, [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
 
 ```bash
 git clone https://github.com/<you>/liftoff.git

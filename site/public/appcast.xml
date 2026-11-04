@@ -3,21 +3,21 @@
     <channel>
         <title>Liftoff</title>
         <item>
-            <title>1.17</title>
-            <pubDate>Wed, 29 Jul 2026 17:21:55 +0300</pubDate>
-            <sparkle:version>20</sparkle:version>
-            <sparkle:shortVersionString>1.17</sparkle:shortVersionString>
+            <title>1.18</title>
+            <pubDate>Wed, 04 Nov 2026 12:41:21 +0200</pubDate>
+            <sparkle:version>21</sparkle:version>
+            <sparkle:shortVersionString>1.18</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>Version 1.17</h2>
+            <description><![CDATA[<h2>Version 1.18</h2>
 <ul>
-<li>Added native Liftoff Settings with Prompt Shortcuts, global Project Tags, and About sections</li>
-<li>Added locally stored prompt shortcuts that paste into the active terminal without sending</li>
-<li>The CMD + SHIFT quick switcher now moves between Projects and Shortcuts with Left/Right, navigates with Up/Down, and acts on release</li>
-<li>Added a reusable global tag catalogue where tag names and colors can be managed once for every project</li>
-<li>New Terminal now opens as a neutral standalone Terminal instead of exposing the home directory as a project</li>
+<li>Claude Code and Codex now send completion and attention updates through Liftoff&#x27;s MCP integration, with the latest message visible beneath its terminal in the sidebar</li>
+<li>Task-aware tab titles and project-aware notification routing make active agent work easier to find</li>
+<li>Added custom macOS notification sounds in Settings, with support for MP3, M4A, WAV, and AIFF uploads</li>
+<li>Removed built-in AI summaries and provider settings to focus on terminal workflows and direct updates from coding agents</li>
+<li>Improved project history search and retained the complete saved project history</li>
 </ul>
 ]]></description>
-            <enclosure url="https://github.com/shostkevych/liftoff/releases/download/v1.17/Liftoff-1.17.zip" length="5630743" type="application/octet-stream" sparkle:edSignature="Kxc9gD5NXlNmjMbdfIY91BAXF9HazxlAZgiwDirjcHoM7+Oabsn7VUdnY+rVdbcPgBosZOQf4KP5WSPJQ4R/Bg=="/>
+            <enclosure url="https://github.com/shostkevych/liftoff/releases/download/v1.18/Liftoff-1.18.zip" length="5646273" type="application/octet-stream" sparkle:edSignature="qvYOUXfG420LxDWX7NxE+7gyumPN03BpLDpfxVAflIPQj6HyJItancUN5ultQ1IWi/mlC99K4iSsmL/c1WwtAw=="/>
         </item>
     </channel>
 </rss>

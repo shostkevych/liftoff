@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Lightweight Markdown renderer for the summary popup.
+/// Lightweight Markdown renderer (What's New notes).
 /// Handles: bold lead lines, (nested) bullets, numbered lists,
 /// headings, fenced code blocks, and inline `code`/**bold**/*italic*.
 struct MarkdownText: View {

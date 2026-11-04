@@ -6,7 +6,7 @@ const CONTACT = "personal@shostkevych.com";
 export const metadata = {
   title: "Privacy Policy — Liftoff",
   description:
-    "Liftoff collects limited anonymous usage counts but never terminal content, commands, project paths, or personal data.",
+    "How Liftoff handles local terminal data, encrypted Air sessions, anonymous app metrics, and website analytics.",
 };
 
 export default function Privacy() {
@@ -14,8 +14,8 @@ export default function Privacy() {
     <LegalShell
       tag="Privacy Policy"
       title="Your terminals stay yours."
-      updated="July 27, 2026"
-      intro="Liftoff is a free, open-source macOS terminal. Terminal content and project data stay under your control. We collect only a few anonymous product counters so we can understand adoption and supported versions."
+      updated="November 4, 2026"
+      intro="Liftoff is a free, open-source macOS terminal. Terminal content and project data stay under your control. The app collects a few anonymous product counters; website analytics are described separately below."
     >
       <h2><span className="num">1</span>The short version</h2>
       <ul>
@@ -31,7 +31,7 @@ export default function Privacy() {
         on your Mac (and, for the companion, your phone):
       </p>
       <ul>
-        <li>Your application settings and preferences (themes, layouts, per-project accent colors).</li>
+        <li>Your application settings and preferences, including layouts, project tags and colors, and saved prompt shortcuts.</li>
         <li>The list of projects and working directories you choose to open.</li>
         <li>Pairing information for Liftoff Air, used to reconnect your trusted devices.</li>
       </ul>
@@ -83,10 +83,15 @@ export default function Privacy() {
 
       <h2><span className="num">6</span>This website</h2>
       <p>
-        The Liftoff marketing website sets no tracking cookies and runs no advertising or
-        analytics scripts. Like virtually all web hosting, the provider serving this site
-        may keep standard, short-lived server logs (such as IP addresses and requested
-        URLs) for security and reliability. These logs are not used to identify or profile you.
+        This website uses Microsoft Clarity to understand page usage, including
+        clicks, scrolling, and session recordings. Clarity may use cookies. This
+        website analytics script is separate from the Liftoff app and cannot
+        access the terminal sessions running on your devices. For details, see{" "}
+        <a className="inline" href="https://learn.microsoft.com/en-us/clarity/faq#privacy" target="_blank" rel="noreferrer">Microsoft Clarity&apos;s privacy information</a>.
+      </p>
+      <p>
+        The providers hosting this website may also process network addresses
+        and request logs to operate and secure the site.
       </p>
 
       <h2><span className="num">7</span>Children</h2>

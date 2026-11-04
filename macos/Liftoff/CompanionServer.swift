@@ -445,7 +445,7 @@ final class CompanionServer {
                 openProject(path, for: client)
             }
         case "openempty":
-            openProject(NSHomeDirectory(), for: client)
+            openStandaloneTerminal(for: client)
         case "newtab":
             if let pidStr = msg["pid"] as? String, let pid = UUID(uuidString: pidStr) {
                 newTab(in: pid, for: client)
@@ -481,12 +481,13 @@ final class CompanionServer {
             }
         }
         send(["t": "sessions", "items": items], to: client)
-        ensureGreeting(for: client)
     }
 
     private func sendRecents(to client: Client) {
         guard let store = AppStore.shared ?? AppStore.allStores.first else { return }
-        let openPaths = Set(AppStore.allStores.flatMap { $0.projects.map { $0.folder.path } })
+        let openPaths = Set(AppStore.allStores.flatMap {
+            $0.projects.filter { !$0.isStandaloneTerminal }.map { $0.folder.path }
+        })
         var items: [[String: Any]] = []
         for url in store.recentProjectURLs where !openPaths.contains(url.path) {
             var item: [String: Any] = ["path": url.path, "name": url.lastPathComponent]
@@ -511,6 +512,15 @@ final class CompanionServer {
         }
         sendSessions(to: client)
         if let newTid { send(["t": "opened", "tid": newTid], to: client) }
+    }
+
+    private func openStandaloneTerminal(for client: Client) {
+        guard let store = AppStore.shared ?? AppStore.allStores.first else { return }
+        store.addStandaloneTerminal()
+        sendSessions(to: client)
+        if let tid = store.activeProject?.activeTerminalID?.uuidString {
+            send(["t": "opened", "tid": tid], to: client)
+        }
     }
 
     private func newTab(in pid: UUID, for client: Client) {
@@ -551,7 +561,8 @@ final class CompanionServer {
 
     private func storeAndProject(forPath path: String) -> (AppStore, Project)? {
         rebuildIndexesIfNeeded()
-        for (store, project) in projectIndex.values where project.folder.path == path {
+        for (store, project) in projectIndex.values
+        where !project.isStandaloneTerminal && project.folder.path == path {
             return (store, project)
         }
         return nil
@@ -582,32 +593,6 @@ final class CompanionServer {
             guard let self else { return }
             self.activityBroadcastScheduled = false
             self.broadcastSessions()
-        }
-    }
-
-    // MARK: Welcome greeting
-
-    private var greeting: String?
-    private var greetingRequested = false
-
-    private func ensureGreeting(for client: Client) {
-        if let greeting {
-            send(["t": "greeting", "text": greeting], to: client)
-            return
-        }
-        guard !greetingRequested else { return }
-        greetingRequested = true
-        Task { @MainActor in
-            for attempt in 0..<3 {
-                let text = await AppStore.cerebrasChat(system: Self.greetingSystem, user: "Generate the greeting.", temperature: 1.2)
-                if let text, text.count < 220 {
-                    self.greeting = text
-                    for c in self.clients.values where c.authed { self.send(["t": "greeting", "text": text], to: c) }
-                    return
-                }
-                if attempt < 2 { try? await Task.sleep(nanoseconds: 1_500_000_000) }
-            }
-            self.greetingRequested = false
         }
     }
 
@@ -740,6 +725,4 @@ final class CompanionServer {
     }
 
     private static func agentName(_ agent: Agent) -> String { agent.label }
-
-    private static let greetingSystem = "You write the single welcome line for Liftoff, a macOS terminal built for engineers who run AI coding agents (Claude Code, Codex) across many projects at once. Produce ONE original greeting, 1–2 sentences, max 22 words total, in the voice of an engineering innovation lab: confident, warm, a little poetic about building, shipping, terminals, and machines that work alongside you. Vary the theme each time. Plain text only — no quotes, no emojis, no markdown, no preamble."
 }

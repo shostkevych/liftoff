@@ -75,8 +75,8 @@ struct LiftoffHint: Identifiable, Equatable {
     static let all: [LiftoffHint] = [
         .init(id: 0, title: "Instant terminal",
               message: "Press CMD + I from anywhere to summon a fresh terminal. Press it again to dismiss."),
-        .init(id: 1, title: "Quick project switcher",
-              message: "Hold CMD + SHIFT, use UP or DOWN, then release to switch projects. Number keys work too."),
+        .init(id: 1, title: "Quick switcher",
+              message: "Hold CMD + SHIFT. Use LEFT or RIGHT for projects and prompt shortcuts, UP or DOWN to choose, then release."),
         .init(id: 2, title: "Projects side by side",
               message: "CMD + click projects in the sidebar to keep several of them visible at once."),
         .init(id: 3, title: "Split a terminal",
@@ -91,8 +91,6 @@ struct LiftoffHint: Identifiable, Equatable {
               message: "Press CMD + R to give the active terminal a stable custom name."),
         .init(id: 8, title: "Drop files into the shell",
               message: "Drag files or folders onto a terminal to insert their shell-escaped paths."),
-        .init(id: 9, title: "Summarize terminal output",
-              message: "Select terminal output and press CMD + F for a concise AI summary."),
         .init(id: 10, title: "Write multiline prompts",
               message: "Press SHIFT + RETURN to add a newline without submitting in supported agentic CLIs."),
         .init(id: 11, title: "Reopen projects on launch",
@@ -220,62 +218,6 @@ struct AboutPopup: View {
             .keyboardShortcut(.escape, modifiers: [])
         }
         .shadow(color: .black.opacity(0.5), radius: 18, y: 6)
-    }
-}
-
-/// Cmd+F result popup: Cerebras summary of the selected terminal text.
-struct SummaryPopup: View {
-    let state: AppStore.SummaryState
-    let dismiss: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            PopupHeader(title: "Summary", icon: "sparkles", dismiss: dismiss)
-            switch state {
-            case .loading:
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text("Summarizing with Cerebras…")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.vertical, 12)
-            case .result(let text):
-                MarkdownText(markdown: text)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                attribution
-            case .noSelection:
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Select some text in a terminal first.")
-                    Text("Make sure Liftoff can capture the content. Some CLI tools use rich terminal rendering that isn’t supported yet — we’re working on better handling.")
-                        .foregroundStyle(.tertiary)
-                }
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-            case .failed(let message):
-                Text(message)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(16)
-        .modifier(PopupCard(width: 560))
-    }
-
-    /// Footer crediting the inference provider and model.
-    private var attribution: some View {
-        HStack(spacing: 5) {
-            Image(systemName: "bolt.fill")
-                .font(.system(size: 9))
-            Text("Inference run on Cerebras · model ")
-                + Text("gpt-oss-120b").font(.system(size: 10.5, weight: .semibold, design: .monospaced))
-        }
-        .font(.system(size: 10.5))
-        .foregroundStyle(Color.brand)
-        .padding(.top, 2)
     }
 }
 
@@ -420,77 +362,6 @@ struct WebPasswordPopup: View {
     }
 }
 
-/// Air → Set Cerebras API Key overlay: set/clear the key used for AI features
-/// (Cmd+F summary, greeting). Without a key, AI features are disabled.
-struct CerebrasKeyPopup: View {
-    @Environment(AppStore.self) private var store
-    let dismiss: () -> Void
-
-    @State private var draft: String = ""
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            PopupHeader(title: "Cerebras API Key", icon: "key.horizontal", dismiss: dismiss)
-
-            Text("Required for AI features — Cmd+F summaries and the welcome greeting. Stored securely in the system Keychain.")
-                .font(.system(size: 12.5))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            // Provider reference + model in use.
-            HStack(spacing: 8) {
-                Link(destination: URL(string: "https://cloud.cerebras.ai")!) {
-                    Label("Get a free key — cloud.cerebras.ai", systemImage: "arrow.up.right.square")
-                        .font(.system(size: 11.5, weight: .medium))
-                }
-                .foregroundStyle(Color.brand)
-                Spacer()
-                Text("gpt-oss-120b")
-                    .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2.5)
-                    .background(Capsule().fill(.quaternary))
-            }
-
-            SecureField("csk-…", text: $draft)
-                .textFieldStyle(.roundedBorder)
-                .controlSize(.large)
-                .focused($focused)
-                .onSubmit(save)
-
-            HStack {
-                if !store.cerebrasApiKey.isEmpty {
-                    Label("Key set", systemImage: "checkmark.circle.fill")
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.green)
-                } else {
-                    Label("No key — AI features disabled", systemImage: "exclamationmark.triangle.fill")
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.orange)
-                }
-                Spacer()
-                Button("Save") { save() }
-                    .keyboardShortcut(.return, modifiers: [])
-                    .buttonStyle(.borderedProminent)
-                    .tint(.brand)
-            }
-        }
-        .padding(20)
-        .modifier(PopupCard(width: 360))
-        .onAppear {
-            draft = store.cerebrasApiKey
-            focused = true
-        }
-    }
-
-    private func save() {
-        store.setCerebrasApiKey(draft)
-        dismiss()
-    }
-}
-
 /// Shown when an untagged project is opened (and from the header context menu):
 /// pick a label + palette color, reuse an existing tag, or skip.
 /// Cmd+R / tab right-click: set a custom tab name that nested processes
@@ -602,16 +473,17 @@ struct ProjectTagPopup: View {
                 }
             }
 
-            // Quick reuse of tag labels already in use (the color stays the
-            // project's own pick — tags carry no color).
+            // Quick reuse of global tag definitions (name + color).
             if !store.knownTags.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Recent tags")
+                    Text("Saved tags")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(.tertiary)
                         .textCase(.uppercase)
-                    FlowChips(labels: store.knownTags, selected: label) { picked in
-                        label = picked
+                    TagFlowChips(tags: store.knownTags, selected: label) { picked in
+                        label = picked.label
+                        colorHex = picked.colorHex
+                        familyIndex = TagPalette.familyIndex(of: picked.colorHex)
                     }
                 }
             }
@@ -674,20 +546,23 @@ struct ProjectTagPopup: View {
     }
 }
 
-/// Wrapping row of reusable tag-label chips, packed left-to-right (no fixed
-/// columns, so no dead space). Tags carry no color, so the chips are neutral —
-/// picking one just fills in the label; the active one is highlighted.
-private struct FlowChips: View {
-    let labels: [String]
+/// Wrapping row of reusable global tags, including their assigned colors.
+private struct TagFlowChips: View {
+    let tags: [ProjectTag]
     var selected: String = ""
-    let pick: (String) -> Void
+    let pick: (ProjectTag) -> Void
 
     var body: some View {
         FlowLayout(spacing: 8, lineSpacing: 8) {
-            ForEach(Array(labels.enumerated()), id: \.offset) { _, label in
-                let isOn = label.caseInsensitiveCompare(selected) == .orderedSame
-                Button { pick(label) } label: {
-                    Text(label)
+            ForEach(Array(tags.enumerated()), id: \.offset) { _, tag in
+                let isOn = tag.label.caseInsensitiveCompare(selected) == .orderedSame
+                Button { pick(tag) } label: {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(tag.color)
+                            .frame(width: 8, height: 8)
+                        Text(tag.label)
+                    }
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .fixedSize()
                         .padding(.horizontal, 11)
@@ -764,14 +639,29 @@ struct HookSetupPopup: View {
             .abbreviatingWithTildeInPath
     }
 
+    /// Claude and Codex also get Liftoff's MCP server registered.
+    private var mcpDescription: String? {
+        let file: URL
+        switch agent {
+        case .codex: file = configDir.appendingPathComponent("config.toml")
+        case .opencode: return nil
+        default:
+            file = configDir.standardizedFileURL == HookSetup.defaultConfigDir.standardizedFileURL
+                ? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".claude.json")
+                : configDir.appendingPathComponent(".claude.json")
+        }
+        let path = (file.path as NSString).abbreviatingWithTildeInPath
+        return "Registers the Liftoff MCP server in \(path)"
+    }
+
     private var setupDescription: String {
         switch agent {
         case .codex:
-            "Adds PermissionRequest + Stop hooks to \(settingsPath); approve them once with /hooks"
+            "Adds a tab-title hook to \(settingsPath) (approve once with /hooks) and removes old notify hooks"
         case .opencode:
             "Adds a notify plugin to \(settingsPath)"
         default:
-            "Adds Notification + Stop hooks to \(settingsPath)"
+            "Adds a tab-title hook to \(settingsPath) and removes old notify hooks"
         }
     }
 
@@ -785,8 +675,17 @@ struct HookSetupPopup: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: 8) {
-                hookRow(icon: "bell", text: "Native banner per project when \(agentName) pauses for input")
-                hookRow(icon: "checkmark.circle", text: "A ping when a response finishes")
+                if agent == .opencode {
+                    hookRow(icon: "bell", text: "Native banner per project when \(agentName) pauses for input")
+                    hookRow(icon: "checkmark.circle", text: "A ping when a response finishes")
+                } else {
+                    hookRow(icon: "checkmark.circle",
+                            text: "\(agentName) sends you a one-line notification each time it finishes a task")
+                    hookRow(icon: "bell", text: "…and when it stops to ask for your input")
+                }
+                if let mcpDescription {
+                    hookRow(icon: "puzzlepiece.extension", text: mcpDescription)
+                }
                 hookRow(icon: "gearshape", text: setupDescription)
             }
             .padding(12)
@@ -852,8 +751,7 @@ struct HelpPopup: View {
             ("⌘← / ⌘→", "Line start / end"),
             ("⌥⌫ / ⌘⌫", "Delete word / whole line"),
         ]),
-        ("AI", [
-            ("⌘F", "Summarize selected text with Gemma"),
+        ("Agents", [
             ("Notifications", "Claude Code, Codex, and opencode push per project via hooks"),
         ]),
     ]

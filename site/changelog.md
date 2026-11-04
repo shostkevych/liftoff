@@ -4,6 +4,14 @@ Newest release on top. Each `## <version>` section is shown in-app: in the
 "What's New" popup after an update, and (via release.sh) in Sparkle's update
 prompt.
 
+## 1.18
+
+- Claude Code and Codex now send completion and attention updates through Liftoff's MCP integration, with the latest message visible beneath its terminal in the sidebar
+- Task-aware tab titles and project-aware notification routing make active agent work easier to find
+- Added custom macOS notification sounds in Settings, with support for MP3, M4A, WAV, and AIFF uploads
+- Removed built-in AI summaries and provider settings to focus on terminal workflows and direct updates from coding agents
+- Improved project history search and retained the complete saved project history
+
 ## 1.17
 
 - Added native Liftoff Settings with Prompt Shortcuts, global Project Tags, and About sections
