@@ -1,6 +1,6 @@
 import Nav from "./Nav";
 
-const GITHUB = "https://github.com/yourname/liftoff";
+const GITHUB = "https://github.com/shostkevych/liftoff";
 
 export default function LegalShell({ tag, title, updated, intro, children }) {
   return (

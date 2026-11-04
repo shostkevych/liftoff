@@ -24,7 +24,7 @@ const mono = Geist_Mono({
 const SITE_URL = "https://liftoff.shostkevych.com";
 const TITLE = "Liftoff — the terminal for the AI-agent era";
 const DESCRIPTION =
-  "A free, open-source macOS terminal built for engineers who run AI coding agents across many projects at once. Watch and steer Claude Code, Codex, Gemini and more — from your Mac, your phone, or any browser.";
+  "A free, open-source macOS terminal for running coding agents across projects. Color-coded workspaces, reusable prompt shortcuts, split panes, and encrypted access with Liftoff Air.";
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),

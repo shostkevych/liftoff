@@ -3,12 +3,40 @@ import Foundation
 private enum HookEndpoint {
     static let marker = "localhost:\(48623 + BuildVariant.portOffset)"
     static let baseURL = "http://\(marker)"
+
+    /// Liftoff's MCP server (see `LiftoffMCP`), registered per build variant.
+    static let mcpName = BuildVariant.portOffset == 0 ? "liftoff" : "liftoff-dev"
+    static let mcpURL = "\(baseURL)/mcp"
+    static let sessionHeader = "X-Liftoff-Session"
+    /// Per-turn reminder injected by Claude's UserPromptSubmit hook (no quotes).
+    static let notifyReminder = "Liftoff: after writing your full reply to this message, call "
+        + "mcp__\(mcpName)__notify exactly once as your very last step (one short sentence: outcome, "
+        + "Failed: ..., or Needs input: ...). Required for every response, including short answers."
+}
+
+/// Find/strip Liftoff's entries in an agent hooks event (matcher array).
+private enum LiftoffHooks {
+    private static func isLiftoff(_ matcher: [String: Any], markers: [String]) -> Bool {
+        guard let hooks = matcher["hooks"] as? [[String: Any]] else { return false }
+        return hooks.contains { hook in
+            guard let command = hook["command"] as? String else { return false }
+            return markers.contains { command.contains($0) }
+        }
+    }
+
+    static func contains(_ existing: Any?, markers: [String]) -> Bool {
+        (existing as? [[String: Any]] ?? []).contains { isLiftoff($0, markers: markers) }
+    }
+
+    static func removing(_ existing: Any?, markers: [String]) -> [[String: Any]] {
+        (existing as? [[String: Any]] ?? []).filter { !isLiftoff($0, markers: markers) }
+    }
 }
 
 /// Manages Liftoff's Claude Code notification hook in ~/.claude/settings.json.
 /// The hook curls Liftoff's local NotificationServer on the
-/// Notification and Stop events, so a running agent surfaces native macOS
-/// banners (project-aware title) without any extra setup from the user.
+/// UserPromptSubmit event (tab work titles). Notifications come from the agent
+/// itself via Liftoff's MCP server; older Notification/Stop hooks are removed.
 enum HookSetup {
     /// The default config folder when a session sets no CLAUDE_CONFIG_DIR.
     static let defaultConfigDir = URL(fileURLWithPath: NSHomeDirectory())
@@ -28,17 +56,63 @@ enum HookSetup {
     /// too — otherwise it lingers alongside the inline hook and fires twice.
     private static let legacyMarker = "claude-notify"
 
-    /// True when our hooks are present in this folder's settings. Requires the
-    /// `worktitle` route too, so installs from older builds (notify-only)
-    /// self-heal and gain the UserPromptSubmit work-title hook on next prompt.
+    /// Events whose Liftoff hooks older builds installed and we now remove.
+    private static let retiredEvents = ["Notification", "Stop"]
+
+    /// True when the work-title hook and MCP server are set up and no retired
+    /// notification hook lingers (so older installs get re-prompted to clean up).
     static func isInstalled(in configDir: URL) -> Bool {
         guard let data = try? Data(contentsOf: settingsFile(in: configDir)),
-              let text = String(data: data, encoding: .utf8) else { return false }
-        return text.contains(marker) && text.contains("worktitle")
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let hooks = root["hooks"] as? [String: Any] else { return false }
+        return LiftoffHooks.contains(hooks["UserPromptSubmit"], markers: ["__notify"])
+            && !retiredEvents.contains { LiftoffHooks.contains(hooks[$0], markers: [marker, legacyMarker]) }
+            && isMCPInstalled(in: configDir)
     }
 
-    /// Merge the Notification + Stop hooks into this folder's settings.json,
-    /// preserving existing content and other hooks. Returns true on success.
+    /// Claude keeps user-scope MCP servers in `.claude.json` — `~/.claude.json`
+    /// for the default folder, otherwise inside the CLAUDE_CONFIG_DIR folder.
+    private static func claudeJSON(for configDir: URL) -> URL {
+        configDir.standardizedFileURL == defaultConfigDir.standardizedFileURL
+            ? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".claude.json")
+            : configDir.appendingPathComponent(".claude.json")
+    }
+
+    private static func isMCPInstalled(in configDir: URL) -> Bool {
+        guard let data = try? Data(contentsOf: claudeJSON(for: configDir)),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let servers = root["mcpServers"] as? [String: Any],
+              let entry = servers[HookEndpoint.mcpName] as? [String: Any] else { return false }
+        return entry["url"] as? String == HookEndpoint.mcpURL && entry["alwaysLoad"] as? Bool == true
+    }
+
+    /// Register Liftoff's MCP server; the session header expands from the
+    /// env var Liftoff injects into each terminal.
+    @discardableResult
+    private static func installMCP(in configDir: URL) -> Bool {
+        let file = claudeJSON(for: configDir)
+        var root: [String: Any] = [:]
+        if FileManager.default.fileExists(atPath: file.path) {
+            guard let data = try? Data(contentsOf: file),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else { return false }
+            root = json
+        }
+        var servers = root["mcpServers"] as? [String: Any] ?? [:]
+        servers[HookEndpoint.mcpName] = [
+            "type": "http",
+            "url": HookEndpoint.mcpURL,
+            "alwaysLoad": true,
+            "headers": [HookEndpoint.sessionHeader: "${LIFTOFF_SESSION_ID:-}"]
+        ]
+        root["mcpServers"] = servers
+        guard let out = try? JSONSerialization.data(
+            withJSONObject: root, options: [.prettyPrinted, .withoutEscapingSlashes]) else { return false }
+        return (try? out.write(to: file, options: .atomic)) != nil
+    }
+
+    /// Merge the work-title hook into this folder's settings.json, drop retired
+    /// Liftoff notification hooks, and register the MCP server.
     @discardableResult
     static func install(in configDir: URL) -> Bool {
         let file = settingsFile(in: configDir)
@@ -48,63 +122,39 @@ enum HookSetup {
             root = json
         }
         var hooks = root["hooks"] as? [String: Any] ?? [:]
-        hooks["Notification"] = appended(to: hooks["Notification"], command: notificationCommand)
-        hooks["Stop"] = appended(to: hooks["Stop"], command: stopCommand)
-        hooks["UserPromptSubmit"] = appended(to: hooks["UserPromptSubmit"], command: userPromptSubmitCommand)
+        for event in retiredEvents {
+            let kept = LiftoffHooks.removing(hooks[event], markers: [marker, legacyMarker])
+            hooks[event] = kept.isEmpty ? nil : kept
+        }
+        var prompt = LiftoffHooks.removing(hooks["UserPromptSubmit"], markers: [marker, legacyMarker])
+        prompt.append(["hooks": [["type": "command", "command": userPromptSubmitCommand]]])
+        hooks["UserPromptSubmit"] = prompt
         root["hooks"] = hooks
 
         guard let out = try? JSONSerialization.data(
             withJSONObject: root, options: [.prettyPrinted, .sortedKeys]) else { return false }
         try? FileManager.default.createDirectory(
             at: configDir, withIntermediateDirectories: true)
-        return (try? out.write(to: file)) != nil
+        guard (try? out.write(to: file)) != nil else { return false }
+        return installMCP(in: configDir)
     }
-
-    /// Append one command entry to an event's matcher array (or create it),
-    /// first stripping any prior Liftoff entry so re-running self-heals the
-    /// duplicate hooks left by the old, never-matching marker.
-    private static func appended(to existing: Any?, command: String) -> [[String: Any]] {
-        var matchers = existing as? [[String: Any]] ?? []
-        matchers.removeAll { matcher in
-            guard let hooks = matcher["hooks"] as? [[String: Any]] else { return false }
-            return hooks.contains { hook in
-                guard let command = hook["command"] as? String else { return false }
-                return command.contains(marker) || command.contains(legacyMarker)
-            }
-        }
-        matchers.append(["hooks": [["type": "command", "command": command]]])
-        return matchers
-    }
-
-    /// Fired when Claude needs attention — uses the hook's `message`, and the
-    /// project folder name (from `cwd`) as the banner title.
-    private static let notificationCommand =
-        "I=$(cat); D=$(printf '%s' \"$I\" | jq -r '.cwd // empty'); "
-        + "M=$(printf '%s' \"$I\" | jq -r '.message // \"Needs your attention\"'); "
-        + "T=$([ -n \"$D\" ] && basename \"$D\" || echo 'Claude Code'); "
-        + "curl -sG \(HookEndpoint.baseURL)/notify "
-        + "--data-urlencode \"title=$T\" --data-urlencode \"message=$M\" >/dev/null 2>&1"
-
-    /// Fired when Claude finishes a response.
-    private static let stopCommand =
-        "I=$(cat); D=$(printf '%s' \"$I\" | jq -r '.cwd // empty'); "
-        + "T=$([ -n \"$D\" ] && basename \"$D\" || echo 'Claude Code'); "
-        + "curl -sG \(HookEndpoint.baseURL)/notify "
-        + "--data-urlencode \"title=$T\" --data-urlencode 'message=Finished' >/dev/null 2>&1"
 
     /// Fired when the user submits a prompt — sends the prompt text as this
     /// session's "work title" so the tab reflects what Claude is doing. Routed
     /// to the exact terminal via the injected $LIFTOFF_SESSION_ID env var.
+    /// Its stdout is added to Claude's context, so inside Liftoff it also
+    /// reminds the model each turn to end with the MCP `notify` call.
     private static let userPromptSubmitCommand =
         "I=$(cat); P=$(printf '%s' \"$I\" | jq -r '.prompt // empty'); "
-        + "[ -n \"$LIFTOFF_SESSION_ID\" ] && [ -n \"$P\" ] && "
+        + "if [ -n \"$LIFTOFF_SESSION_ID\" ] && [ -n \"$P\" ]; then "
         + "curl -sG \(HookEndpoint.baseURL)/worktitle "
-        + "--data-urlencode \"session=$LIFTOFF_SESSION_ID\" --data-urlencode \"title=$P\" >/dev/null 2>&1"
+        + "--data-urlencode \"session=$LIFTOFF_SESSION_ID\" "
+        + "--data-urlencode \"title=$P\" >/dev/null 2>&1 || true; "
+        + "echo '\(HookEndpoint.notifyReminder)'; fi"
 }
 
-/// Manages Liftoff's Codex hooks in ~/.codex/hooks.json. Codex exposes the
-/// PermissionRequest, Stop, and UserPromptSubmit lifecycle events needed to
-/// mirror Claude's attention, completion, and work-title integration.
+/// Manages Liftoff's Codex work-title hook in ~/.codex/hooks.json plus the MCP
+/// server in config.toml. Older PermissionRequest/Stop notify hooks are removed.
 enum CodexHookSetup {
     /// The default config folder when a session sets no CODEX_HOME.
     static let defaultConfigDir = URL(fileURLWithPath: NSHomeDirectory())
@@ -116,12 +166,73 @@ enum CodexHookSetup {
 
     private static let marker = HookEndpoint.marker
 
+    private static let retiredEvents = ["PermissionRequest", "Stop"]
+
     static func isInstalled(in configDir: URL) -> Bool {
         guard let data = try? Data(contentsOf: hooksFile(in: configDir)),
-              let text = String(data: data, encoding: .utf8) else { return false }
-        return text.contains(marker)
-            && text.contains("PermissionRequest")
-            && text.contains("worktitle")
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let hooks = root["hooks"] as? [String: Any] else { return false }
+        return LiftoffHooks.contains(hooks["UserPromptSubmit"], markers: [marker])
+            && !retiredEvents.contains { LiftoffHooks.contains(hooks[$0], markers: [marker]) }
+            && isMCPInstalled(in: configDir)
+    }
+
+    private static var mcpTable: String { "[mcp_servers.\(HookEndpoint.mcpName)]" }
+
+    private static func isMCPInstalled(in configDir: URL) -> Bool {
+        let text = (try? String(contentsOf: configDir.appendingPathComponent("config.toml"), encoding: .utf8)) ?? ""
+        let rules = (try? String(contentsOf: agentsFile(in: configDir), encoding: .utf8)) ?? ""
+        return text.contains(mcpTable) && rules.contains(rulesBlock)
+    }
+
+    /// Codex doesn't pass MCP server instructions to the model, so the notify
+    /// rules go into the global AGENTS.md inside a marked, replaceable block.
+    private static func agentsFile(in configDir: URL) -> URL {
+        configDir.appendingPathComponent("AGENTS.md")
+    }
+
+    private static let rulesBegin = "<!-- liftoff:begin -->"
+    private static let rulesEnd = "<!-- liftoff:end -->"
+    private static var rulesBlock: String {
+        """
+        \(rulesBegin)
+        # Liftoff notifications
+        Only when the `\(HookEndpoint.mcpName)` MCP server's `notify` tool is available (you are in a Liftoff terminal):
+        \(LiftoffMCP.instructions)
+        \(rulesEnd)
+        """
+    }
+
+    @discardableResult
+    private static func installRules(in configDir: URL) -> Bool {
+        let file = agentsFile(in: configDir)
+        var text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+        if let start = text.range(of: rulesBegin), let end = text.range(of: rulesEnd, range: start.upperBound..<text.endIndex) {
+            text.replaceSubrange(start.lowerBound..<end.upperBound, with: rulesBlock)
+        } else {
+            if !text.isEmpty && !text.hasSuffix("\n") { text += "\n" }
+            text += (text.isEmpty ? "" : "\n") + rulesBlock + "\n"
+        }
+        return (try? text.write(to: file, atomically: true, encoding: .utf8)) != nil
+    }
+
+    /// Append Liftoff's MCP server to config.toml (left alone if a table with
+    /// that name already exists).
+    @discardableResult
+    private static func installMCP(in configDir: URL) -> Bool {
+        guard installRules(in: configDir) else { return false }
+        guard !isMCPInstalled(in: configDir) else { return true }
+        let file = configDir.appendingPathComponent("config.toml")
+        var text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+        if !text.isEmpty && !text.hasSuffix("\n") { text += "\n" }
+        text += """
+
+        \(mcpTable)
+        url = "\(HookEndpoint.mcpURL)"
+        env_http_headers = { "\(HookEndpoint.sessionHeader)" = "LIFTOFF_SESSION_ID" }
+
+        """
+        return (try? text.write(to: file, atomically: true, encoding: .utf8)) != nil
     }
 
     /// Merge Liftoff's hooks into Codex's hooks.json while preserving any
@@ -138,53 +249,26 @@ enum CodexHookSetup {
         }
         guard root["hooks"] == nil || root["hooks"] is [String: Any] else { return false }
         var hooks = root["hooks"] as? [String: Any] ?? [:]
-        hooks["PermissionRequest"] = appended(
-            to: hooks["PermissionRequest"], command: permissionRequestCommand)
-        hooks["Stop"] = appended(to: hooks["Stop"], command: stopCommand)
-        hooks["UserPromptSubmit"] = appended(
-            to: hooks["UserPromptSubmit"], command: userPromptSubmitCommand)
+        for event in retiredEvents {
+            let kept = LiftoffHooks.removing(hooks[event], markers: [marker])
+            hooks[event] = kept.isEmpty ? nil : kept
+        }
+        var prompt = LiftoffHooks.removing(hooks["UserPromptSubmit"], markers: [marker])
+        prompt.append(["hooks": [[
+            "type": "command",
+            "command": userPromptSubmitCommand,
+            "timeout": 3
+        ]]])
+        hooks["UserPromptSubmit"] = prompt
         root["hooks"] = hooks
 
         guard let out = try? JSONSerialization.data(
             withJSONObject: root, options: [.prettyPrinted, .sortedKeys]) else { return false }
         try? FileManager.default.createDirectory(
             at: configDir, withIntermediateDirectories: true)
-        return (try? out.write(to: file)) != nil
+        guard (try? out.write(to: file)) != nil else { return false }
+        return installMCP(in: configDir)
     }
-
-    private static func appended(to existing: Any?, command: String) -> [[String: Any]] {
-        var matchers = existing as? [[String: Any]] ?? []
-        matchers.removeAll { matcher in
-            guard let hooks = matcher["hooks"] as? [[String: Any]] else { return false }
-            return hooks.contains { hook in
-                guard let command = hook["command"] as? String else { return false }
-                return command.contains(marker)
-            }
-        }
-        matchers.append(["hooks": [[
-            "type": "command",
-            "command": command,
-            "timeout": 3
-        ]]])
-        return matchers
-    }
-
-    private static let permissionRequestCommand =
-        "I=$(cat); D=$(printf '%s' \"$I\" | jq -r '.cwd // empty'); "
-        + "M=$(printf '%s' \"$I\" | jq -r '.tool_input.description // \"Needs your attention\"'); "
-        + "T=$([ -n \"$D\" ] && basename \"$D\" || echo 'Codex'); "
-        + "curl -sG \(HookEndpoint.baseURL)/notify "
-        + "--data-urlencode \"title=$T\" --data-urlencode \"message=$M\" "
-        + "--data-urlencode 'source=codex' >/dev/null 2>&1 || true"
-
-    /// Stop hooks require valid JSON on stdout, so return an empty object after
-    /// posting the notification.
-    private static let stopCommand =
-        "I=$(cat); D=$(printf '%s' \"$I\" | jq -r '.cwd // empty'); "
-        + "T=$([ -n \"$D\" ] && basename \"$D\" || echo 'Codex'); "
-        + "curl -sG \(HookEndpoint.baseURL)/notify "
-        + "--data-urlencode \"title=$T\" --data-urlencode 'message=Finished' "
-        + "--data-urlencode 'source=codex' >/dev/null 2>&1 || true; printf '{}'"
 
     private static let userPromptSubmitCommand =
         "I=$(cat); P=$(printf '%s' \"$I\" | jq -r '.prompt // empty'); "

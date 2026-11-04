@@ -1,6 +1,6 @@
 import LegalShell from "../components/LegalShell";
 
-const GITHUB = "https://github.com/yourname/liftoff";
+const GITHUB = "https://github.com/shostkevych/liftoff";
 const CONTACT = "personal@shostkevych.com";
 
 export const metadata = {

@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// First-launch onboarding: a modern, Apple-inspired paged guide that introduces
-/// Liftoff, then projects & tags, AI summaries, Liftoff Air, and shortcuts —
+/// Liftoff, then projects & tags, notifications, Liftoff Air, and shortcuts —
 /// finishing into the home screen.
 struct WelcomeGuide: View {
     let finish: () -> Void
@@ -147,13 +147,12 @@ private struct WelcomePage {
             ]
         ),
         WelcomePage(
-            icon: "sparkles",
+            icon: "bell.badge.fill",
             accent: .mono,
-            title: "AI Summary",
-            subtitle: "Select any text in a terminal and let Liftoff summarize it instantly — no copy-paste, no context switch.",
+            title: "Notifications",
+            subtitle: "Coding agents push per-project updates so you know the moment they need you.",
             highlights: [
-                .init(icon: "text.viewfinder", title: "Summarize selection", detail: "Press ⌘F to turn a wall of logs or output into a crisp summary."),
-                .init(icon: "bell.badge.fill", title: "Smart notifications", detail: "Coding agents push per-project updates so you know the moment they need you."),
+                .init(icon: "bell.badge.fill", title: "Smart notifications", detail: "Claude Code, Codex, and opencode notify you when they finish or need input."),
             ]
         ),
         WelcomePage(
@@ -173,7 +172,6 @@ private struct WelcomePage {
             subtitle: "Liftoff is keyboard-first. Here are the moves you'll reach for every day.",
             highlights: [
                 .init(icon: "arrow.up.left.and.arrow.down.right", title: "⌘E  /  ⌘1–5", detail: "Expand the focused terminal, or snap its split to a width fraction."),
-                .init(icon: "sparkles", title: "⌘F  —  AI summary", detail: "Summarize the selected terminal text instantly with on-device AI."),
                 .init(icon: "folder.badge.plus", title: "⌘O  —  Projects", detail: "Open a new project, or jump back into a recent one."),
                 .init(icon: "questionmark.circle", title: "⌘H  —  All shortcuts", detail: "Open the full hotkeys reference anytime you need a reminder."),
             ]

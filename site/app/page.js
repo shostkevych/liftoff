@@ -3,7 +3,7 @@ import HeroDemo from "./components/HeroDemo";
 
 const GITHUB = "https://github.com/shostkevych/liftoff";
 const APP_STORE = "https://apps.apple.com/us/app/liftoff-air/id6780915535";
-// Direct download of the latest signed macOS build (also the Sparkle update feed).
+// Latest published, signed macOS release.
 const DOWNLOAD = "/download";
 
 function Icon({ d }) {
@@ -64,36 +64,56 @@ const AGENTS = [
 
 const MINI = [
   {
-    t: "Summarize on the spot",
-    d: "Instant AI summaries of long runs and stack traces.",
-    d2: "M4 6h16M4 12h10M4 18h7M16 15l2 2 4-4",
+    t: "Instant Terminal",
+    d: "Press ⌘I from any app to bring up a fresh floating terminal.",
   },
   {
     t: "Splits, zoom & focus",
     d: "Split, expand to full focus, and zoom type on the fly.",
-    d2: "M4 4h16v16H4zM4 10h16M10 10v10",
   },
   {
     t: "Color-coded workspaces",
-    d: "Every project keeps its accent across Mac, phone and web.",
-    d2: "M12 3a9 9 0 1 0 9 9 4 4 0 0 1-4-4 4 4 0 0 1-4-4 .9.9 0 0 0-1-1ZM7.5 12a.5.5 0 1 1 0 .01M12 7a.5.5 0 1 1 0 .01M16 11a.5.5 0 1 1 0 .01",
+    d: "Manage reusable project tags and colors in native Settings.",
+  },
+  {
+    t: "Undo a closed tab",
+    d: "Restore a terminal within 10 seconds, with its process and scrollback intact.",
+  },
+  {
+    t: "Memory at a glance",
+    d: "See memory usage by terminal and close a shell that gets too heavy.",
+  },
+  {
+    t: "Pin your projects",
+    d: "Keep your regular workspaces ready to reopen when Liftoff starts.",
+  },
+  {
+    t: "Files into the shell",
+    d: "Drop files or folders onto a terminal to paste their shell-escaped paths.",
+  },
+  {
+    t: "Tips as you work",
+    d: "Discover useful shortcuts and workflow hints, or turn them off in Help.",
   },
   {
     t: "Native macOS, fast",
     d: "A real SwiftUI app on a battle-tested core. Quiet, keyboard-first.",
-    d2: "M13 2 4 14h7l-1 8 9-12h-7l1-8Z",
   },
 ];
 
 /* Keyboard-first workflow shortcuts (verbatim from the in-app ⌘H reference). */
 const KEYS = [
-  { k: ["⌘", "⇧", "1–5"], t: "Switch project", d: "Hold ⌘⇧, hit a number — jump straight to any open project." },
+  { k: ["⌘", "⇧"], t: "Quick switcher", d: "Hold to open; ←/→ switches Projects and Shortcuts, ↑/↓ chooses, and release confirms." },
   { k: ["⌘", "O"], t: "Open project", d: "Recents picker with ⌘-click multi-select." },
   { k: ["⌘", "T"], t: "New terminal", d: "Spin up a fresh tab in the focused project." },
   { k: ["⌘", "D"], t: "Split pane", d: "Split the focused terminal side by side." },
   { k: ["⌘", "1–5"], t: "Resize split", d: "Snap a split to n/(n+1) of the project width." },
   { k: ["⌘", "E"], t: "Expand & focus", d: "Blow the focused split up to fill the project." },
-  { k: ["⌘", "F"], t: "Summarize", d: "Turn selected output into a crisp AI summary." },
+  { k: ["⌘", "I"], t: "Instant Terminal", d: "Summon a fresh floating shell from any app. Press again to dismiss." },
+  { k: ["⌘", "⇧", "T"], t: "Restore closed tab", d: "Bring a terminal back within 10 seconds, including its running shell." },
+  { k: ["⌘", "R"], t: "Rename tab", d: "Give the active terminal a name that running programs cannot overwrite." },
+  { k: ["⌘", "L"], t: "Toggle tab bars", d: "Show or hide terminal tab bars across your projects." },
+  { k: ["⇧", "↩"], t: "Multiline prompts", d: "Add a newline without submitting in supported coding agents." },
   { k: ["⌘", "B"], t: "Toggle sidebar", d: "Collapse the projects rail for full width." },
 ];
 
@@ -143,12 +163,12 @@ export default function Home() {
               style={{ animationDelay: "40ms" }}
             />
             <h1 className="display rise" style={{ animationDelay: "70ms" }}>
-              Mission control for every project.
+              Keep every agent in view.
             </h1>
             <p className="lede rise" style={{ animationDelay: "170ms" }}>
               Liftoff is a macOS terminal for engineers who run coding agents
-              across many projects at once. Watch and steer Claude Code, Codex
-              and more — from your Mac, your phone, or any browser.
+              across many projects at once. Organize your workspaces, reuse your
+              prompts, and take your terminals with you on iPhone or in a browser.
             </p>
             <div className="hero-cta rise" style={{ animationDelay: "280ms" }}>
               <a href={DOWNLOAD} className="btn btn-primary">
@@ -158,11 +178,11 @@ export default function Home() {
                 </svg>
               </a>
               <span className="cta-soon">
-                <b>Windows &amp; Linux</b> coming as demand grows
+                <b>Free for macOS</b> · Liftoff Air for iPhone
               </span>
             </div>
             <p className="hero-note rise" style={{ animationDelay: "360ms" }}>
-              No account. No terminal data collected. MIT licensed.
+              Liftoff 1.18. No account. No terminal data collected. MIT licensed.
             </p>
           </div>
 
@@ -200,9 +220,10 @@ export default function Home() {
               <span className="kicker">Workspace</span>
               <h2 className="display">Every project in one sidebar.</h2>
               <p>
-                Each repository you&apos;re working on gets a row in the sidebar —
-                colour-coded, with its open tabs and live activity at a glance.
-                Click to switch, your whole workspace in one window.
+                Give each project its own terminals, reusable color tags, and
+                space to work. Click to switch, or ⌘-click to keep several projects
+                visible side by side. Open a standalone terminal when you just
+                need a shell.
               </p>
               <a href="#air" className="show-link">See it in motion <span className="arr">→</span></a>
             </div>
@@ -242,59 +263,35 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ---------------- SHOWCASE: summarize ---------------- */}
-        <section id="summarize" className="showcase">
+        {/* ---------------- SHOWCASE: prompt shortcuts ---------------- */}
+        <section id="prompt-shortcuts" className="showcase">
           <div className="wrap show-row rev">
             <div className="show-copy">
-              <span className="kicker">Summaries</span>
-              <h2 className="display">Read 500 lines in 5 seconds.</h2>
+              <span className="kicker">Prompt Shortcuts</span>
+              <h2 className="display">Your best prompts, always at hand.</h2>
               <p>
-                Select any wall of terminal output — a failing build, a noisy
-                stack trace, a long test run — and Liftoff distills it to the one
-                thing that matters: did it pass, what broke, and what to do next.
+                Save the prompts you reach for in native Settings. Hold ⌘⇧,
+                switch to Shortcuts with ← or →, choose with ↑ or ↓, and release
+                to paste into the active terminal. Review or edit before you send.
               </p>
-              <div className="pwr">
-                <div className="pwr-row">
-                  <span className="pwr-chip pwr-chip--accent">gpt-oss-120b</span>
-                  <span className="pwr-x">on</span>
-                  <span className="pwr-chip">Cerebras</span>
-                  <span className="pwr-tag">fastest inference available</span>
-                </div>
-                <p className="pwr-note">
-                  Summaries land almost before you blink. <b>Bring your own key</b> —
-                  it&apos;s stored in your macOS Keychain, and requests go straight
-                  to Cerebras, <b>never through us</b>.
-                </p>
-              </div>
-              <a href={DOWNLOAD} className="show-link">Try it free <span className="arr">→</span></a>
+              <p>Stored on your Mac. Reusable with any agent or shell. Pasting never submits the prompt for you.</p>
+              <a href="#keyboard" className="show-link">Find your next shortcut <span className="arr">→</span></a>
             </div>
             <div className="show-visual">
-              <Frame title="atlas-api — cargo test">
-                <div className="m-sum">
-                  <div className="m-sum-term">
-                    {[
-                      "   Compiling atlas-api v0.4.1",
-                      "error[E0308]: mismatched types",
-                      "  --> src/handlers/auth.rs:42:18",
-                      "   |",
-                      "42 |     verify(&token, claims)",
-                      "   |            ^^^^^^ expected `&str`, found `String`",
-                      "error: could not compile `atlas-api`",
-                      "test result: FAILED. 0 passed; 1 failed",
-                    ].map((l, i) => (
-                      <span className={`m-sum-line${i === 5 ? " sel" : ""}${l.startsWith("error") ? " err" : ""}`} key={i}>{l}</span>
-                    ))}
-                  </div>
-                  <div className="m-sum-card">
-                    <span className="m-sum-badge">
-                      <span className="m-sum-spark" /> Summary · 1.4s
-                    </span>
-                    <b className="m-sum-head">`cargo test` failed — type error at `auth.rs:42`.</b>
-                    <ul className="m-sum-bul">
-                      <li>expected <code>&amp;str</code>, found <code>String</code> → add <code>.as_str()</code></li>
-                      <li>build aborted; 0 of 1 tests ran</li>
-                    </ul>
-                  </div>
+              <Frame title="Quick Switch">
+                <div className="m-shortcuts" aria-label="Example of the prompt shortcut picker">
+                  <div className="m-shortcut-modes"><span>Projects</span><strong>Shortcuts</strong></div>
+                  {[
+                    ["Review changes", "Review the current diff for bugs and missing edge cases."],
+                    ["Explain a failure", "Explain what failed and suggest the smallest useful fix."],
+                    ["Update documentation", "Update the relevant documentation to match these changes."],
+                  ].map(([name, prompt], i) => (
+                    <div className={`m-shortcut${i === 0 ? " selected" : ""}`} key={name}>
+                      <span className="m-shortcut-number">{i + 1}</span>
+                      <div><b>{name}</b><p>{prompt}</p></div>
+                    </div>
+                  ))}
+                  <div className="m-shortcut-hint">↑ ↓ to choose <span>Release ⌘⇧ to paste</span></div>
                 </div>
               </Frame>
             </div>
@@ -306,7 +303,7 @@ export default function Home() {
           <div className="wrap">
             <div className="mini-head">
               <span className="kicker">Built around agents</span>
-              <h2 className="display">A command center for machines that build alongside you.</h2>
+              <h2 className="display">Small details. A smoother working day.</h2>
             </div>
             <div className="slider">
               <div className="slider-track">
@@ -317,6 +314,42 @@ export default function Home() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ---------------- AGENT UPDATES ---------------- */}
+        <section id="agent-updates" className="showcase">
+          <div className="wrap show-row">
+            <div className="show-copy">
+              <span className="kicker">Agent updates</span>
+              <h2 className="display">Know what needs you next.</h2>
+              <p>
+                Claude Code and Codex send their own completion and attention
+                messages. The latest note stays under its terminal in the
+                sidebar, with a native macOS notification when you are elsewhere.
+              </p>
+              <ul className="feature-list">
+                <li>Task-aware tab titles keep work easy to find.</li>
+                <li>Agent messages stay attached to the right project and terminal.</li>
+                <li>Choose your own notification sound in Settings.</li>
+              </ul>
+              <p className="release-note">Included in Liftoff 1.18, with Claude Code and Codex integrations configured from the app.</p>
+            </div>
+            <div className="show-visual">
+              <Frame title="Agent updates">
+                <div className="m-agent-updates" aria-label="Examples of agent messages in the sidebar">
+                  <div className="m-agent-note">
+                    <div><AgentLogo name="openai" size={20} /><b>Polish settings</b><span>Codex</span></div>
+                    <p>Settings updated. Ready for review.</p>
+                  </div>
+                  <div className="m-agent-note">
+                    <div><AgentLogo name="claude" size={20} /><b>Connect billing</b><span>Claude</span></div>
+                    <p>Needs input: choose which account to connect.</p>
+                  </div>
+                  <div className="m-notification-sound"><span>Notification sound</span><b>Custom upload</b></div>
+                </div>
+              </Frame>
             </div>
           </div>
         </section>
@@ -374,9 +407,9 @@ export default function Home() {
               <span className="kicker">Keyboard-first</span>
               <h2 className="display">Hands on the keys. Always.</h2>
               <p className="keys-lede">
-                Switch projects, spawn terminals, resize splits and summarize
-                output without ever reaching for the mouse. The whole workflow is
-                a chord away.
+                Switch projects, paste saved prompts, restore a closed tab, or
+                summon a shell from another app. Keep the everyday moves within
+                reach.
               </p>
             </div>
             <div className="keys-grid">
@@ -442,7 +475,8 @@ export default function Home() {
             <p>
               SwiftUI, a hardened terminal core, and an iOS companion you can
               read, fork and build yourself — with end-to-end encryption for
-              every Air session. No paywalls, no accounts, no tracking.
+              every Air session. No paywalls or accounts. Anonymous app counters
+              never include your commands, prompts, or terminal output.
             </p>
             <div className="cta-btns">
               <a href={DOWNLOAD} className="btn btn-primary">Download for macOS</a>
@@ -462,7 +496,8 @@ export default function Home() {
           </a>
           <div className="foot-links">
             <a href="#features">Features</a>
-            <a href="#summarize">Summaries</a>
+            <a href="#prompt-shortcuts">Prompt Shortcuts</a>
+            <a href="#agent-updates">Agent updates</a>
             <a href="#keyboard">Shortcuts</a>
             <a href="#air">Air</a>
             <a href="/changelog">Changelog</a>
